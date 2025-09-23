@@ -1,9 +1,6 @@
 
-# Biblioteca interna do Windows que o OpenGL precisa acessar.
-# obs se tu colocar '#' no inicio da linha o parser irá ignorá-la.
-# testes 2
-
-
+# Internal windows libraries that this project use
+# Note: adding '#' to the start of the line comments it out.
 
 -lgdi32
 -luser32
