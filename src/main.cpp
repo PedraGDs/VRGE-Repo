@@ -2,8 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-// obs se o codigo parecer que nao rodou é porque a opção
-// ["ExternalConsole"] ta ativada dentro do launch.json.
+// copiei da net kk
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
