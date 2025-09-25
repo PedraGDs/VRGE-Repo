@@ -2,14 +2,17 @@
 #ifndef VECTOR2F_H
 #define VECTOR2F_H
 
+#ifdef __cplusplus
 #include "util/intrinsics.h"
 #include <iostream>
 #include <string>
+#endif
 
 struct Vector2f
 {
     float X, Y;
 
+#ifdef __cplusplus
     constexpr inline Vector2f ( ) noexcept : X(0), Y(0) { }
     constexpr inline Vector2f ( float x, float y ) noexcept : X(x), Y(y) { }
 
@@ -77,8 +80,10 @@ struct Vector2f
             std::to_string(this->Y) + " )";
     }
 
+#endif // cplusplus
 };
 
+#ifdef __cplusplus
 constexpr inline Vector2f operator- ( const Vector2f& val ) noexcept {
     return Vector2f(-val.X, -val.Y);
 }
@@ -130,4 +135,5 @@ std::ostream& operator<<(std::ostream& os, const Vector2f& val) {
     return os << val.toString();
 }
 
+#endif // cplusplus
 #endif // VECTOR2F_H

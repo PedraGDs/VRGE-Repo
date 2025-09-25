@@ -2,14 +2,17 @@
 #ifndef VECTOR3F_H
 #define VECTOR3F_H
 
+#ifdef __cplusplus
 #include "util/intrinsics.h"
 #include <iostream>
 #include <string>
+#endif
 
 struct Vector3f
 {
     float X, Y, Z;
 
+#ifdef __cplusplus
     constexpr inline Vector3f ( ) noexcept : X(0), Y(0), Z(0) { }
     constexpr inline Vector3f ( float x, float y, float z ) noexcept : X(x), Y(y), Z(z) { }
 
@@ -89,8 +92,10 @@ struct Vector3f
             std::to_string(this->Z) + " )";
     }
 
+#endif // cplusplus
 };
 
+#ifdef __cplusplus
 constexpr inline Vector3f operator- ( const Vector3f& val ) noexcept {
     return Vector3f(-val.X, -val.Y, -val.Z);
 }
@@ -151,4 +156,5 @@ std::ostream& operator<<(std::ostream& os, const Vector3f& val) {
     return os << val.toString();
 }
 
+#endif // cplusplus
 #endif // VECTOR3F_H
