@@ -1,6 +1,10 @@
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include "Window.h"
+#include <iostream>
 #include <chrono>
+#include <mutex>
 
 static bool isGlfwActive = false;
 static int windowCount = 0;

@@ -2,13 +2,9 @@
 #pragma once
 
 #include <cmath>
-#include <mutex>
 #include <thread>
 #include <atomic>
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
 #include "util/Colors.h"
-#include "util/Vectors.h"
 #include "util/math/Rect2d.h"
 
 static constexpr Rect2d defaultWindowDimensions( 0, 0, 1024, 720 );
