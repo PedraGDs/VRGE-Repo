@@ -12,10 +12,7 @@
 #include "util/math/Rect2d.h"
 
 static constexpr Rect2d defaultWindowDimensions( 0, 0, 1024, 720 );
-static constexpr Color4f bgColor(0.07F, 0.13F, 0.17F, 1.0F);
-static bool isGlfwActive = false;
-static int windowCount = 0;
-static std::mutex win_mtx;
+static constexpr Color4f windowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
 
 class Window {
     

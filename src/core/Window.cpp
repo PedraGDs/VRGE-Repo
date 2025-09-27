@@ -2,6 +2,10 @@
 #include "Window.h"
 #include <chrono>
 
+static bool isGlfwActive = false;
+static int windowCount = 0;
+static std::mutex win_mtx;
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -26,7 +30,9 @@ bool initGLFW () { // this is can not be called in parallel
 }
 
 void Window::render ( float deltaTime ) {
-    glClearColor(0.07F, 0.13F, 0.17F, 1.0F);
+    glClearColor(windowBackgroundColor.red, windowBackgroundColor.green, 
+        windowBackgroundColor.blue, windowBackgroundColor.alpha);
+    
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
@@ -77,7 +83,7 @@ void Window::run ( ) {
     }
 
     this->destroy();
-    
+
 }
 
 bool Window::init () { 
