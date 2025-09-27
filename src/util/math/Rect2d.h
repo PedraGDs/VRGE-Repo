@@ -1,14 +1,14 @@
 
 #pragma once
 
-struct Rect2d {
+typedef struct Rect2d {
     int xPos, yPos, width, height;
 
 #ifdef __cplusplus
     constexpr inline Rect2d() noexcept: xPos(0), yPos(0), width(0), height(0) { }
     constexpr inline Rect2d ( int x, int y, int w, int h) noexcept: xPos(x), yPos(y), width(w), height(h){}
 #endif
-};
+} Rect2d;
 
 
 #ifdef __cplusplus

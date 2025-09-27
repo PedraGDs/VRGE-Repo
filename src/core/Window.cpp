@@ -43,6 +43,7 @@ void Window::render ( float deltaTime ) {
 void Window::run ( ) {
     
     float invMaxFrameRate = 1.0F / this->maxFrameRate;
+    bool isMtxLocked = false;
     float deltaTime = 0;
 
     std::chrono::duration<double> frameTime ( invMaxFrameRate );
@@ -73,6 +74,11 @@ void Window::run ( ) {
             deltaTime = std::chrono::duration<float>(timeElapsed).count();
         }
 
+        if ( this->frameRateChanged || this->vSynChanged || this->titleChanged ) {
+            win_mtx.lock();
+            isMtxLocked = true;
+        }
+
         if ( this->frameRateChanged ) {
             invMaxFrameRate = 1.0F / this->maxFrameRate;
             frameTime = std::chrono::duration<double>( invMaxFrameRate );
@@ -82,6 +88,14 @@ void Window::run ( ) {
         if ( this->vSynChanged ) {
             glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
             this->vSynChanged = false;
+        }
+
+        if ( this->titleChanged ) {
+            glfwSetWindowTitle(this->window, this->winTitle);
+        }
+
+        if ( isMtxLocked ) {
+            win_mtx.unlock();
         }
         
     }
@@ -109,7 +123,7 @@ bool Window::init () {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    this->window = glfwCreateWindow(800, 600, "Sexy Window Title", NULL, NULL);
+    this->window = glfwCreateWindow(800, 600, this->winTitle, NULL, NULL);
     if (!this->window) {
         std::cout << "Failed to open GLFW window" << std::endl;
         return false;
@@ -172,6 +186,7 @@ std::thread* Window::getThread () {
 }
 
 void Window::setMaxFrameRate ( float frameRate ) {
+    std::lock_guard<std::mutex> lock(win_mtx);
     this->maxFrameRate = frameRate;
     this->frameRateChanged = true;
 }
@@ -181,10 +196,17 @@ float Window::getMaxFrameRate ( ) {
 }
 
 void Window::setVSyncEnabled ( bool enabled ) {
+    std::lock_guard<std::mutex> lock(win_mtx);
     this->vSyncEnabled = enabled;
     this->vSynChanged = true;
 }
 
 bool Window::isVSyncEnabled ( ) {
     return this->vSyncEnabled;
+}
+
+void Window::setTitle ( char* newTitle ) {
+    std::lock_guard<std::mutex> lock(win_mtx);
+    this->winTitle = newTitle;
+    this->titleChanged = true;
 }

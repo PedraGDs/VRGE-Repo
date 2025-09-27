@@ -16,10 +16,12 @@ class Window {
         Rect2d dimensions = defaultWindowDimensions;
         std::thread* thread = nullptr;
         GLFWwindow* window = nullptr;
+        char* winTitle;
 
         std::atomic<float> maxFrameRate = INFINITY;
         bool frameRateChanged = false;
         bool shouldDestroy = false; // atomic rw
+        bool titleChanged = false;
         bool vSyncEnabled = true;
         bool vSynChanged = false;
 
@@ -27,8 +29,8 @@ class Window {
         void render( float deltaTime );
 
     public:
-        constexpr inline Window ( Rect2d dims ) noexcept: dimensions(dims) { }
-        constexpr inline Window ( ) noexcept { }
+        constexpr inline Window ( char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title){}
+        constexpr inline Window ( char* title ) noexcept :winTitle(title) { }
 
         bool init ();
         void destroy ();
@@ -39,9 +41,11 @@ class Window {
         Rect2d getDimensions ();
 
         void setMaxFrameRate ( float frameRate );
-        void setVSyncEnabled ( bool enabled );
-
         float getMaxFrameRate ();
+
+        void setVSyncEnabled ( bool enabled );
         bool isVSyncEnabled ();
 
+        void setTitle ( char* newTitle );
+        char* getTitle ( );
 };

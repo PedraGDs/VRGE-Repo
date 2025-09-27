@@ -1,11 +1,17 @@
 
 #pragma once
 
-#include "stdint.h"
+#include <stdint.h>
 
-struct ColorRGB {
+#ifndef __cplusplus
+#include <stdalign.h>
+#endif
+
+typedef struct alignas(4) ColorRGB
+{
     uint8_t alpha, red, green, blue;
 
+#ifdef __cplusplus
     constexpr inline ColorRGB ( ) noexcept: red(0), green(0), blue(0), alpha(255) { }
 
     // Takes ARGB as input and not RGBa
@@ -23,4 +29,6 @@ struct ColorRGB {
     constexpr inline uint32_t toARGB ( ) const noexcept {
         return (this->alpha << 24) | (this->red << 16) | (this->blue << 8) | this->green;
     }
-};
+
+#endif
+} ColorRGB;
