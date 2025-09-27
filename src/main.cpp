@@ -37,14 +37,7 @@ int main(int argc, char** args)
     }
 
     glfwMakeContextCurrent(window);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
-
     glViewport(0, 0, 800, 600);
-
 
     GLfloat vtxs[] = {
         -0.5F, sqrtf(3) / -6, 0.0F,
@@ -90,7 +83,7 @@ int main(int argc, char** args)
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         glfwSwapBuffers(window);
-        glfwPollEvents();    
+        glfwPollEvents();
     }
 
     glDeleteVertexArrays(1, &VAO);

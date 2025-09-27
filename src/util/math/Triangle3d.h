@@ -1,13 +1,14 @@
 
-#ifndef TRIANGLES_3D_H
-#define TRIANGLES_3D_H
+#pragma once
 
 #include "Vector3f.h"
-#include "Constants.h"
+#include "util/Constants.h"
 
-struct Triangle3d
+typedef struct Triangle3d
 {
     Vector3f VecA, VecB, VecC, Normal;
+
+#ifdef __cplusplus
 
     constexpr inline Triangle3d ( const Vector3f& vecA, const Vector3f& vecB, const Vector3f& vecC, const Vector3f& normal) noexcept {
         this->VecA = vecA;
@@ -23,6 +24,6 @@ struct Triangle3d
     inline float GetArea ( ) const noexcept {
         return (this->VecB - this->VecA).Cross(this->VecC - this->VecA).Magnitude() * ONE_HALF;
     }
-};
 
-#endif // TRIANGLES_3D_H
+#endif
+} Triangle3d;

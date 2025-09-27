@@ -1,6 +1,5 @@
 
-#ifndef CAMERA_H
-#define CAMERA_H
+#pragma once
 
 #include "util/math/Vectors.h"
 
@@ -9,5 +8,3 @@ struct Camera {
     
 
 };
-
-#endif // CAMERA_H

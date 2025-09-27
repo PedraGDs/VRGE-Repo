@@ -1,6 +1,5 @@
 
-#ifndef UTIL_INTRINSICS_H
-#define UTIL_INTRINSICS_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,5 +24,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif // UTIL_INTRINSICS_H

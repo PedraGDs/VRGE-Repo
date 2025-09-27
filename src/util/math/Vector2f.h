@@ -1,6 +1,5 @@
 
-#ifndef VECTOR2F_H
-#define VECTOR2F_H
+#pragma once
 
 #ifdef __cplusplus
 #include "util/intrinsics.h"
@@ -8,7 +7,7 @@
 #include <string>
 #endif
 
-struct Vector2f
+typedef struct Vector2f
 {
     float X, Y;
 
@@ -81,7 +80,7 @@ struct Vector2f
     }
 
 #endif // cplusplus
-};
+} Vector2f;
 
 #ifdef __cplusplus
 constexpr inline Vector2f operator- ( const Vector2f& val ) noexcept {
@@ -136,4 +135,3 @@ std::ostream& operator<<(std::ostream& os, const Vector2f& val) {
 }
 
 #endif // cplusplus
-#endif // VECTOR2F_H
