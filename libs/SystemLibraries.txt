@@ -6,5 +6,3 @@
 -luser32
 -lkernel32
 -lopengl32
-
--lwinmm
