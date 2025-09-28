@@ -14,7 +14,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 }
 
 // Must only be called from the main thread.
-GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* monitor ) {
+GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* monitor, Rect2d rect ) {
 
     GLFWwindow* window;
 
@@ -22,12 +22,12 @@ GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* m
         monitor = glfwGetPrimaryMonitor();
     }
 
-    window = glfwCreateWindow(800, 600, winTitle, monitor, NULL);
-    if ( !window ) {
-        return nullptr;
-    }
+    window = glfwCreateWindow(rect.width, rect.height, winTitle, monitor, NULL);
 
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    if ( window ) {
+        glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    }
+    
     return window;
 
 }
@@ -61,7 +61,7 @@ GLFWwindow* iSetFullScreen ( Window* window ) {
     return mainThreadRunner->scheduleAndWait ([window]() -> GLFWwindow* {
 
         GLFWwindow* glfwWindow = createGLFWWindow(
-            window->getTitle(), window->isFullScreen(), window->getMonitor() );
+            window->getTitle(), window->isFullScreen(), window->getMonitor(), window->getDimensions() );
 
         if ( !glfwWindow ) {
             std::cout << "Failed to set full screen to: " << window->isFullScreen();
@@ -75,6 +75,7 @@ GLFWwindow* iSetFullScreen ( Window* window ) {
         glfwSwapBuffers(glfwWindow);
     
         return glfwWindow;
+        
     });
 
 }
@@ -100,6 +101,7 @@ void Window::run ( ) {
     glfwSwapBuffers(this->window);
     glfwMakeContextCurrent(this->window);
     glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
+    glViewport(0, 0, this->dimensions.width, this->dimensions.height);
 
     while(!this->shouldDestroy && !glfwWindowShouldClose(this->window)) {
 
@@ -145,7 +147,7 @@ void Window::run ( ) {
         }
 
         if ( this->fullscreenChanged ) {
-            this->window = iSetFullScreen(this);
+            this->window = iSetFullScreen(this); // TODO: FIX THIS ( DOUBLE SCREENS + FIX DIMENSIONS LOGIC)
 
             if ( !this->window ) {
                 return;
@@ -177,7 +179,7 @@ bool Window::init () {
             return false;
         }
 
-        this->window = createGLFWWindow(this->winTitle, this->fullscreenEnabled, NULL);
+        this->window = createGLFWWindow(this->winTitle, this->fullscreenEnabled, NULL, this->dimensions);
         if (!this->window) {
             std::cout << "Failed to open GLFW window" << std::endl;
             return false;
