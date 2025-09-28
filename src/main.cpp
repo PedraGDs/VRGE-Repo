@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "util/intrinsics.h"
+#include "core/MainThreadRunner.h"
 
 const char* vertexShaderSource = "#version 330 core\n layout (location = 0) in vec3 aPos;\n "
 "void main(){\n"
@@ -91,5 +92,14 @@ int main(int argc, char** args)
 
     glfwDestroyWindow(window);
     glfwTerminate();
+
+    mainThreadRunner = new MainThreadRunner();
+
+    mainThreadRunner->runEveryFrame ([]() -> void {
+        glfwPollEvents();
+    });
+
+    mainThreadRunner->start();
+    
     return 0;
 }

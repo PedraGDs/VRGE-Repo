@@ -4,6 +4,7 @@
 #include <cmath>
 #include <thread>
 #include <atomic>
+#include <GLFW/glfw3.h>
 #include "util/Colors.h"
 #include "util/math/Rect2d.h"
 
@@ -19,8 +20,10 @@ class Window {
         char* winTitle;
 
         std::atomic<float> maxFrameRate = INFINITY;
+        bool fullscreenEnabled = false;
+        bool fullscreenChanged = false;
         bool frameRateChanged = false;
-        bool shouldDestroy = false; // atomic rw
+        bool shouldDestroy = false;
         bool titleChanged = false;
         bool vSyncEnabled = true;
         bool vSynChanged = false;
@@ -48,4 +51,10 @@ class Window {
 
         void setTitle ( char* newTitle );
         char* getTitle ( );
+
+        void setFullScreen ( bool enabled );
+        bool isFullScreen ();
+
+        GLFWmonitor* getMonitor ();
+        
 };
