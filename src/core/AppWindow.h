@@ -10,15 +10,15 @@
 #include "util/Colors.h"
 #include "util/math/Rect2d.h"
 
-static constexpr Rect2d defaultWindowDimensions( 0, 0, 1024, 720 );
-static constexpr Color4f windowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
+static constexpr Rect2d defaultAppWindowDimensions( 0, 0, 1024, 720 );
+static constexpr Color4f AppWindowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
 
 // GLFW && Glad
 // Must only be called from the main thread.
 bool initGlfw ();
 void stopGlfw ();
 
-class Window {
+class AppWindow {
     
     private:
         std::atomic<uint8_t> changedFlags = 0;
@@ -26,7 +26,7 @@ class Window {
         GLFWwindow* window = nullptr;
         std::mutex localMtx{};
         
-        Rect2d dimensions = defaultWindowDimensions;
+        Rect2d dimensions = defaultAppWindowDimensions;
         float maxFrameRate = INFINITY;
         bool fullscreenEnabled = false;
         bool shouldDestroy = false;
@@ -45,10 +45,10 @@ class Window {
         void iSetFullScreen ( );
 
     public:
-        inline Window ( const char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title) { }
-        inline Window ( const char* title ) noexcept: winTitle(title) { }
+        inline AppWindow ( const char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title) { }
+        inline AppWindow ( const char* title ) noexcept: winTitle(title) { }
 
-        ~Window ();
+        ~AppWindow ();
 
         bool init ();
         void destroy ();

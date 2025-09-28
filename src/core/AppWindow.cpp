@@ -1,6 +1,8 @@
 
 #include "MainThreadRunner.h"
-#include "Window.h"
+#include "AppWindow.h"
+
+using highResClock = std::chrono::high_resolution_clock;
 
 static std::mutex global_win_mtx;
 static bool isGlfwActive = false;
@@ -14,6 +16,16 @@ constexpr uint8_t TITLE_CHANGED_FLAG      = 0b10000;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+}
+
+inline void sleepUntil ( highResClock::time_point target ) {
+
+    while ( highResClock::now() + std::chrono::microseconds(500) < target ) {
+        std::this_thread::sleep_for ( std::chrono::microseconds(500) );
+    }   
+
+    while ( highResClock::now() < target ) { }
+
 }
 
 // GLFW && Glad
@@ -81,7 +93,7 @@ GLFWwindow* createGLFWWindow ( const char* winTitle, bool isFullScreen,
 
 }
 
-void Window::iSetFullScreen ( ) {
+void AppWindow::iSetFullScreen ( ) {
 
     glfwMakeContextCurrent(NULL);
 
@@ -133,7 +145,7 @@ void Window::iSetFullScreen ( ) {
 
 }
 
-GLFWmonitor* Window::getMonitor ( ) {
+GLFWmonitor* AppWindow::getMonitor ( ) {
     
     return mainThreadRunner->scheduleAndWait<GLFWmonitor*> ([this]() -> GLFWmonitor* {
 
@@ -178,7 +190,7 @@ GLFWmonitor* Window::getMonitor ( ) {
 
 }
 
-void Window::iSetFlag ( uint8_t flag, bool enabled ) {
+void AppWindow::iSetFlag ( uint8_t flag, bool enabled ) {
     
     if ( enabled ) {
         this->changedFlags |= flag;
@@ -188,15 +200,15 @@ void Window::iSetFlag ( uint8_t flag, bool enabled ) {
 
 }
 
-bool Window::isFlagEnabled ( uint8_t flag ) {
+bool AppWindow::isFlagEnabled ( uint8_t flag ) {
     return this->changedFlags & flag;
 };
 
-Window::~Window ( ) {
+AppWindow::~AppWindow ( ) {
     this->destroy();
 }
 
-void Window::render ( float deltaTime ) {
+void AppWindow::render ( float deltaTime ) {
     // constexpr auto wBgColor = windowBackgroundColor;
     // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
     // glClear(GL_COLOR_BUFFER_BIT);
@@ -204,14 +216,18 @@ void Window::render ( float deltaTime ) {
     std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
 }
 
-void Window::run ( ) {
+void AppWindow::run ( ) {
 
-    float invMaxFrameRate = 1.0F / this->maxFrameRate;
     float deltaTime = 0;
 
-    std::chrono::duration<double> frameTime ( invMaxFrameRate );
-    std::chrono::high_resolution_clock::time_point frameStart, frameEnd;
-    std::chrono::high_resolution_clock::duration timeElapsed;
+    highResClock::duration frameTime( 
+        static_cast<highResClock::rep>(
+            highResClock::period::den / this->maxFrameRate
+        )
+    );
+
+    highResClock::time_point frameStart, frameEnd;
+    highResClock::duration timeElapsed;
 
     glfwMakeContextCurrent(this->window);
 
@@ -227,22 +243,22 @@ void Window::run ( ) {
 
     while(!this->shouldDestroy && !glfwWindowShouldClose(this->window)) {
 
-        frameStart = std::chrono::high_resolution_clock::now();
+        frameStart = highResClock::now();
 
         this->render(deltaTime);
         glfwSwapBuffers(this->window);
 
-        frameEnd = std::chrono::high_resolution_clock::now();
+        frameEnd = highResClock::now();
         timeElapsed = frameEnd - frameStart;
 
         if ( frameTime > timeElapsed ) {
-            std::this_thread::sleep_for(frameTime - timeElapsed);
-            deltaTime = invMaxFrameRate;
+            sleepUntil ( frameStart + frameTime );
+
+            frameEnd = highResClock::now();
+            timeElapsed = frameEnd - frameStart;
         } 
         
-        else {
-            deltaTime = std::chrono::duration<float>(timeElapsed).count();
-        }
+        deltaTime = std::chrono::duration<float>(timeElapsed).count();
 
         if ( !this->changedFlags ) {
             continue;
@@ -253,8 +269,12 @@ void Window::run ( ) {
         if ( this->isFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
             this->iSetFlag(FRAMERATE_CHANGED_FLAG, false);
 
-            invMaxFrameRate = 1.0F / this->maxFrameRate;
-            frameTime = std::chrono::duration<double>( invMaxFrameRate );
+            frameTime = highResClock::duration(
+                static_cast<highResClock::rep>(
+                    highResClock::period::den / this->maxFrameRate
+                )
+            );
+
         }
 
         if ( this->isFlagEnabled(VSYNC_CHANGED_FLAG)) {
@@ -299,7 +319,7 @@ void Window::run ( ) {
 
 }
 
-bool Window::init () { 
+bool AppWindow::init () { 
 
     std::lock_guard<std::mutex> lockA(this->localMtx);
     std::lock_guard<std::mutex> lockB(global_win_mtx);
@@ -330,7 +350,7 @@ bool Window::init () {
             return false;
         }
 
-        this->thread = new std::thread(Window::run, this);
+        this->thread = new std::thread(AppWindow::run, this);
         mainThreadRunner->addChild(this->thread);
         
         windowCount++;
@@ -339,7 +359,7 @@ bool Window::init () {
     });
 }
 
-void Window::destroy () {
+void AppWindow::destroy () {
 
     std::lock_guard<std::mutex> lockA(this->localMtx);
     std::lock_guard<std::mutex> lockB(global_win_mtx);
@@ -361,7 +381,7 @@ void Window::destroy () {
             windowCount--;
         }
 
-        // delete this->thread; // TODO: THIS, MAYBE HASHMAP IT ON MAINTHREADRUNNER
+        // delete this->thread; // TODO: THIS, MAYBE HASHMAP IT ON MAIN_THREAD_RUNNER
         this->isDestroyed = true;
 
         // Application shutdown.
@@ -373,7 +393,7 @@ void Window::destroy () {
 
 }
 
-void Window::setDimensions ( Rect2d dims ) {
+void AppWindow::setDimensions ( Rect2d dims ) {
 
     std::lock_guard<std::mutex> lock(this->localMtx);
 
@@ -384,7 +404,7 @@ void Window::setDimensions ( Rect2d dims ) {
 
 }
 
-void Window::setMaxFrameRate ( float frameRate ) {
+void AppWindow::setMaxFrameRate ( float frameRate ) {
 
     std::lock_guard<std::mutex> lock(this->localMtx);
 
@@ -395,7 +415,7 @@ void Window::setMaxFrameRate ( float frameRate ) {
 
 }
 
-void Window::setVSyncEnabled ( bool enabled ) {
+void AppWindow::setVSyncEnabled ( bool enabled ) {
     std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->vSyncEnabled != enabled ) {
@@ -404,7 +424,7 @@ void Window::setVSyncEnabled ( bool enabled ) {
     }
 }
 
-void Window::setTitle ( const char* newTitle ) {
+void AppWindow::setTitle ( const char* newTitle ) {
     std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->winTitle != newTitle ) {
@@ -413,7 +433,7 @@ void Window::setTitle ( const char* newTitle ) {
     }
 }
 
-void Window::setFullScreen ( bool enabled ) {
+void AppWindow::setFullScreen ( bool enabled ) {
     std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->fullscreenEnabled != enabled ) {
@@ -422,26 +442,26 @@ void Window::setFullScreen ( bool enabled ) {
     }
 }
 
-Rect2d Window::getDimensions () {
+Rect2d AppWindow::getDimensions () {
     return this->dimensions;
 }
 
-bool Window::isFullScreen ( ) {
+bool AppWindow::isFullScreen ( ) {
     return this->fullscreenEnabled;
 }
 
-bool Window::isVSyncEnabled ( ) {
+bool AppWindow::isVSyncEnabled ( ) {
     return this->vSyncEnabled;
 }
 
-float Window::getMaxFrameRate ( ) {
+float AppWindow::getMaxFrameRate ( ) {
     return this->maxFrameRate;
 }
 
-std::thread* Window::getThread () {
+std::thread* AppWindow::getThread () {
     return this->thread;
 }
 
-const char* Window::getTitle ( ) {
+const char* AppWindow::getTitle ( ) {
     return this->winTitle;
 }
