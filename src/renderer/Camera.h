@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "util/math/Vectors.h"
+#include "util/Vectors.h"
 
 struct Camera {
     Vector3f pos;

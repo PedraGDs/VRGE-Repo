@@ -135,11 +135,11 @@ bool Window::isFlagEnabled ( uint8_t flag ) {
 };
 
 void Window::render ( float deltaTime ) {
-    constexpr auto wBgColor = windowBackgroundColor;
+    // constexpr auto wBgColor = windowBackgroundColor;
+    // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
+    // glClear(GL_COLOR_BUFFER_BIT);
 
-    glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
-    
-    glClear(GL_COLOR_BUFFER_BIT);
+    std::cout << deltaTime << std::endl;
 }
 
 void Window::run ( ) {
