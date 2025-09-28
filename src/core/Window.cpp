@@ -4,25 +4,42 @@
 #include <glad/glad.h>
 #include "Window.h"
 
+static std::mutex global_win_mtx;
 static bool isGlfwActive = false;
 static int windowCount = 0;
-static std::mutex win_mtx;
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
+constexpr uint8_t DIMENSION_CHANGED_FLAG  = 0b1;
+constexpr uint8_t FULLSCREEN_CHANGED_FLAG = 0b10;
+constexpr uint8_t FRAMERATE_CHANGED_FLAG  = 0b100;
+constexpr uint8_t VSYNC_CHANGED_FLAG      = 0b1000;
+constexpr uint8_t TITLE_CHANGED_FLAG      = 0b10000;
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
 // Must only be called from the main thread.
-GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* monitor, Rect2d rect ) {
+GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* monitor, Rect2d& rect ) {
 
+    const GLFWvidmode* mode = nullptr;
     GLFWwindow* window;
 
-    if ( isFullScreen && !monitor ) {
-        monitor = glfwGetPrimaryMonitor();
-    }
+    if ( isFullScreen ) {
+        if ( !monitor ) {
+            monitor = glfwGetPrimaryMonitor();
+        }
 
-    window = glfwCreateWindow(rect.width, rect.height, winTitle, monitor, NULL);
+        if ( monitor ) {
+            mode = glfwGetVideoMode (monitor);
+        }
+
+        if ( mode ) {
+            rect = Rect2d(0, 0, mode->width, mode->height);
+        }
+    } 
+
+    window = glfwCreateWindow(rect.width, rect.height, 
+        winTitle, isFullScreen ? monitor : nullptr, nullptr);
 
     if ( window ) {
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -41,11 +58,6 @@ bool initGLFW () {
         return false;
     }
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return false;
-    }
-
     glfwWindowHint(GLFW_SAMPLES, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -56,29 +68,71 @@ bool initGLFW () {
 
 }
 
-GLFWwindow* iSetFullScreen ( Window* window ) {
+void Window::iSetFullScreen ( ) {
 
-    return mainThreadRunner->scheduleAndWait ([window]() -> GLFWwindow* {
+    glfwMakeContextCurrent(NULL);
 
-        GLFWwindow* glfwWindow = createGLFWWindow(
-            window->getTitle(), window->isFullScreen(), window->getMonitor(), window->getDimensions() );
+    bool succeeded = mainThreadRunner->scheduleAndWait ([this]() -> bool {
 
-        if ( !glfwWindow ) {
-            std::cout << "Failed to set full screen to: " << window->isFullScreen();
-            return nullptr;
+        std::lock_guard<std::mutex> lock (global_win_mtx);
+
+        if ( this->window ) {
+            glfwDestroyWindow(this->window);
+            windowCount--;
         }
 
-        glfwSwapBuffers(glfwWindow);
-        glfwMakeContextCurrent(glfwWindow);
-        glfwSetWindowTitle(glfwWindow, window->getTitle()); 
-        glfwSwapInterval(window->isVSyncEnabled() ? 1 : 0 );
-        glfwSwapBuffers(glfwWindow);
-    
-        return glfwWindow;
-        
+        this->window = createGLFWWindow(
+            this->winTitle, this->fullscreenEnabled, this->getMonitor(), this->dimensions );
+
+        if ( !this->window ) {
+            std::cout << "Failed to set full screen to: " << this->fullscreenEnabled << std::endl;
+            this->destroy();
+            return false;
+        }
+
+        GLFWwindow* oldContext = glfwGetCurrentContext(); // main thread context
+        glfwMakeContextCurrent(this->window);
+
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+            std::cout << "Failed to initialize GLAD" << std::endl;
+            std::cout << "Failed to set full screen to: " << this->fullscreenEnabled << std::endl;
+            this->destroy();
+
+            glfwMakeContextCurrent(oldContext);
+            return false;
+        }
+
+        glfwSwapBuffers(this->window);
+        glfwSetWindowTitle(this->window, this->winTitle); 
+        glfwSwapInterval(this->vSyncEnabled ? 1 : 0 );
+        glfwSwapBuffers(this->window);
+                
+        glViewport(0, 0, this->dimensions.width, this->dimensions.height);
+        windowCount++;
+
+        glfwMakeContextCurrent(oldContext);
+        return true;
     });
 
+    if ( succeeded ) {
+        glfwMakeContextCurrent(this->window);
+    }
+
 }
+
+void Window::iSetFlag ( uint8_t flag, bool enabled ) {
+    
+    if ( enabled ) {
+        this->changedFlags |= flag;
+    } else {
+        this->changedFlags &= ~flag;
+    }
+
+}
+
+bool Window::isFlagEnabled ( uint8_t flag ) {
+    return this->changedFlags & flag;
+};
 
 void Window::render ( float deltaTime ) {
     constexpr auto wBgColor = windowBackgroundColor;
@@ -91,15 +145,21 @@ void Window::render ( float deltaTime ) {
 void Window::run ( ) {
     
     float invMaxFrameRate = 1.0F / this->maxFrameRate;
-    bool isMtxLocked = false;
     float deltaTime = 0;
 
     std::chrono::duration<double> frameTime ( invMaxFrameRate );
     std::chrono::high_resolution_clock::time_point frameStart, frameEnd;
     std::chrono::high_resolution_clock::duration timeElapsed;
 
-    glfwSwapBuffers(this->window);
     glfwMakeContextCurrent(this->window);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        this->destroy();
+        return;
+    }
+
+    glfwSwapBuffers(this->window);
     glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
     glViewport(0, 0, this->dimensions.width, this->dimensions.height);
 
@@ -122,23 +182,27 @@ void Window::run ( ) {
             deltaTime = std::chrono::duration<float>(timeElapsed).count();
         }
 
-        if (this->frameRateChanged || this->vSynChanged || this->titleChanged || this->fullscreenChanged) {
-            win_mtx.lock();
-            isMtxLocked = true;
+        if ( !this->changedFlags ) {
+            continue;
         }
 
-        if ( this->frameRateChanged ) {
+        this->localMtx.lock();
+        
+        if ( this->isFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
+            this->iSetFlag(FRAMERATE_CHANGED_FLAG, false);
+
             invMaxFrameRate = 1.0F / this->maxFrameRate;
             frameTime = std::chrono::duration<double>( invMaxFrameRate );
-            this->frameRateChanged = false;
-        }   
-
-        if ( this->vSynChanged ) {
-            glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
-            this->vSynChanged = false;
         }
 
-        if ( this->titleChanged ) {
+        if ( this->isFlagEnabled(VSYNC_CHANGED_FLAG)) {
+            this->iSetFlag(VSYNC_CHANGED_FLAG, false);
+
+            glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
+        }
+
+        if ( this->isFlagEnabled(TITLE_CHANGED_FLAG)) {
+            this->iSetFlag(TITLE_CHANGED_FLAG, false);
 
             mainThreadRunner->scheduleAndWait ([this]() {
                 glfwSetWindowTitle(this->window, this->winTitle);
@@ -146,17 +210,25 @@ void Window::run ( ) {
 
         }
 
-        if ( this->fullscreenChanged ) {
-            this->window = iSetFullScreen(this); // TODO: FIX THIS ( DOUBLE SCREENS + FIX DIMENSIONS LOGIC)
+        if ( this->isFlagEnabled(DIMENSION_CHANGED_FLAG)) {
+            this->iSetFlag(DIMENSION_CHANGED_FLAG, false);
 
-            if ( !this->window ) {
-                return;
-            }
+            mainThreadRunner->scheduleAndWait ([this]() -> void {
+                glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
+                glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+            });
+
         }
 
-        if ( isMtxLocked ) {
-            win_mtx.unlock();
+        // must be the last if-statement besides the mtx
+        if ( this->isFlagEnabled(FULLSCREEN_CHANGED_FLAG)) {
+            this->iSetFlag(FULLSCREEN_CHANGED_FLAG, false);
+
+            this->iSetFullScreen();
         }
+
+        this->changedFlags = 0;
+        this->localMtx.unlock();
         
     }
 
@@ -166,7 +238,8 @@ void Window::run ( ) {
 
 bool Window::init () { 
 
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lockA(this->localMtx);
+    std::lock_guard<std::mutex> lockB(global_win_mtx);
 
     if ( this->window ) {
         std::cout << "Attempted to initialize a window twice" << std::endl;
@@ -189,14 +262,16 @@ bool Window::init () {
         windowCount++;
 
         return true;
+
     });
 }
 
 void Window::destroy () {
 
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lockA(this->localMtx);
+    std::lock_guard<std::mutex> lockB(global_win_mtx);
 
-    if ( !this->thread || this->thread->get_id() != std::this_thread::get_id()) {
+    if ( (!this->thread) || (this->thread->get_id() != std::this_thread::get_id())) {
         this->shouldDestroy = true;
         return;
     }
@@ -204,7 +279,8 @@ void Window::destroy () {
     mainThreadRunner->scheduleAndWait ( [this]() -> void {
 
         if ( this->window ) {
-            glfwDestroyWindow(window); 
+            glfwDestroyWindow(this->window); 
+            this->window = nullptr;
             windowCount--;
         }
 
@@ -223,59 +299,50 @@ void Window::destroy () {
 
 void Window::setDimensions ( Rect2d dims ) {
 
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lock(this->localMtx);
 
-    if ( this->dimensions == dims ) {
-        return;
+    if ( this->dimensions != dims ) {
+        this->iSetFlag(DIMENSION_CHANGED_FLAG, true);
+        this->dimensions = dims;
     }
-
-    this->dimensions = dims;
-
-    if ( !this->window ) {
-        return;
-    }
-
-    mainThreadRunner->scheduleAndWait ([this, &dims]() -> void {
-        glfwSetWindowSize(this->window, dims.width, dims.height);
-        glfwSetWindowPos(this->window, dims.xPos, dims.yPos);
-    });
 
 }
 
 void Window::setMaxFrameRate ( float frameRate ) {
-    std::lock_guard<std::mutex> lock(win_mtx);
+
+    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->maxFrameRate != frameRate ) {
+        this->iSetFlag(FRAMERATE_CHANGED_FLAG, true);
         this->maxFrameRate = frameRate;
-        this->frameRateChanged = true;
     }
 
 }
 
 void Window::setVSyncEnabled ( bool enabled ) {
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->vSyncEnabled != enabled ) {
+        this->iSetFlag(VSYNC_CHANGED_FLAG, true);
         this->vSyncEnabled = enabled;
-        this->vSynChanged = true;
     }
 }
 
 void Window::setTitle ( char* newTitle ) {
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->winTitle != newTitle ) {
+        this->iSetFlag(TITLE_CHANGED_FLAG, true);
         this->winTitle = newTitle;
-        this->titleChanged = true;
     }
 }
 
 void Window::setFullScreen ( bool enabled ) {
-    std::lock_guard<std::mutex> lock(win_mtx);
+    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->fullscreenEnabled != enabled ) {
+        this->iSetFlag(FULLSCREEN_CHANGED_FLAG, true);
         this->fullscreenEnabled = enabled;
-        this->fullscreenChanged = true;
     }
 }
 
@@ -297,6 +364,10 @@ float Window::getMaxFrameRate ( ) {
 
 std::thread* Window::getThread () {
     return this->thread;
+}
+
+char* Window::getTitle ( ) {
+    return this->winTitle;
 }
 
 GLFWmonitor* Window::getMonitor ( ) {

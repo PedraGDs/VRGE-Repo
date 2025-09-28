@@ -56,7 +56,7 @@ T MainThreadRunner::scheduleAndWait ( std::function<T()> func ) {
     std::promise<T> done;
     std::future<T> fut = done.get_future();
 
-    this->schedule([&func, &done]() mutable {
+    this->schedule([&func, &done]() -> void {
         done.set_value(func());
     });
 

@@ -14,31 +14,35 @@ static constexpr Color4f windowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
 class Window {
     
     private:
-        Rect2d dimensions = defaultWindowDimensions;
+        std::atomic<uint8_t> changedFlags = 0;
         std::thread* thread = nullptr;
         GLFWwindow* window = nullptr;
-        char* winTitle;
-
-        std::atomic<float> maxFrameRate = INFINITY;
+        std::mutex localMtx{};
+        
+        Rect2d dimensions = defaultWindowDimensions;
+        float maxFrameRate = INFINITY;
         bool fullscreenEnabled = false;
-        bool fullscreenChanged = false;
-        bool frameRateChanged = false;
         bool shouldDestroy = false;
-        bool titleChanged = false;
         bool vSyncEnabled = true;
-        bool vSynChanged = false;
+        char* winTitle;
 
         void run();
         void render( float deltaTime );
 
+        void iSetFlag ( uint8_t flag, bool enabled );
+        bool isFlagEnabled ( uint8_t flag );
+
+        void iSetFullScreen ( );
+
     public:
-        constexpr inline Window ( char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title){}
-        constexpr inline Window ( char* title ) noexcept :winTitle(title) { }
+        inline Window ( char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title) { }
+        inline Window ( char* title ) noexcept: winTitle(title) { }
 
         bool init ();
         void destroy ();
 
         std::thread* getThread ();
+        GLFWmonitor* getMonitor ();
 
         void setDimensions ( Rect2d dimensions );
         Rect2d getDimensions ();
@@ -54,7 +58,5 @@ class Window {
 
         void setFullScreen ( bool enabled );
         bool isFullScreen ();
-
-        GLFWmonitor* getMonitor ();
         
 };
