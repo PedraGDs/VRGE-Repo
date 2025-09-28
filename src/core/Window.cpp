@@ -1,7 +1,5 @@
 
 #include "MainThreadRunner.h"
-#include <GLFW/glfw3.h>
-#include <glad/glad.h>
 #include "Window.h"
 
 static std::mutex global_win_mtx;
@@ -18,8 +16,42 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+// GLFW && Glad
 // Must only be called from the main thread.
-GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* monitor, Rect2d& rect ) {
+bool initGlfw ( ) { 
+
+    if ( isGlfwActive ) {
+        return true;
+    }
+
+    if ( !glfwInit() ) {
+        std::cout << "Failed to initialize GLFW" << std::endl;
+        return false;
+    }
+
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    isGlfwActive = true;
+    return true;
+
+}
+
+// Must only be called from the main thread.
+void stopGlfw ( ) {
+
+    if ( isGlfwActive) { 
+        glfwTerminate ();
+        isGlfwActive = false;
+    }
+
+}
+
+// Must only be called from the main thread.
+GLFWwindow* createGLFWWindow ( const char* winTitle, bool isFullScreen, 
+    GLFWmonitor* monitor, Rect2d& rect ) {
 
     const GLFWvidmode* mode = nullptr;
     GLFWwindow* window;
@@ -49,30 +81,11 @@ GLFWwindow* createGLFWWindow ( char* winTitle, bool isFullScreen, GLFWmonitor* m
 
 }
 
-// GLFW && Glad
-// Must only be called from the main thread.
-bool initGLFW () { 
-
-    if ( !glfwInit() ) {
-        std::cout << "Failed to initialize GLFW" << std::endl;
-        return false;
-    }
-
-    glfwWindowHint(GLFW_SAMPLES, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    isGlfwActive = true;
-    return true;
-
-}
-
 void Window::iSetFullScreen ( ) {
 
     glfwMakeContextCurrent(NULL);
 
-    bool succeeded = mainThreadRunner->scheduleAndWait ([this]() -> bool {
+    bool succeeded = mainThreadRunner->scheduleAndWait<bool> ([this]() -> bool {
 
         std::lock_guard<std::mutex> lock (global_win_mtx);
 
@@ -120,6 +133,51 @@ void Window::iSetFullScreen ( ) {
 
 }
 
+GLFWmonitor* Window::getMonitor ( ) {
+    
+    return mainThreadRunner->scheduleAndWait<GLFWmonitor*> ([this]() -> GLFWmonitor* {
+
+        GLFWmonitor* monitor = glfwGetWindowMonitor( this->window ); 
+
+        if ( monitor ) {
+            return monitor;
+        }
+
+        int monitorCount = 0;
+        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount); 
+
+        GLFWmonitor* bestMonitor;
+        int bestArea = -1;
+        int area;
+
+        Rect2d monitorRect;
+        Rect2d winRect;
+
+        glfwGetWindowPos(window, &winRect.xPos, &winRect.yPos);
+        glfwGetWindowSize(window, &winRect.width, &winRect.height);
+
+        for ( int i = 0; i < monitorCount; ++i ) {
+
+            monitor = monitors[i];
+
+            glfwGetMonitorWorkarea(monitor, &monitorRect.xPos, &monitorRect.yPos, 
+                &monitorRect.width, &monitorRect.height);
+        
+            area = winRect.getIntersectionArea(monitorRect);
+
+            if ( bestArea < area ) {
+                bestMonitor = monitor;
+                bestArea = area;
+            }
+
+        }
+
+        return bestMonitor; // return value
+
+    });
+
+}
+
 void Window::iSetFlag ( uint8_t flag, bool enabled ) {
     
     if ( enabled ) {
@@ -134,16 +192,20 @@ bool Window::isFlagEnabled ( uint8_t flag ) {
     return this->changedFlags & flag;
 };
 
+Window::~Window ( ) {
+    this->destroy();
+}
+
 void Window::render ( float deltaTime ) {
     // constexpr auto wBgColor = windowBackgroundColor;
     // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
     // glClear(GL_COLOR_BUFFER_BIT);
 
-    std::cout << deltaTime << std::endl;
+    std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
 }
 
 void Window::run ( ) {
-    
+
     float invMaxFrameRate = 1.0F / this->maxFrameRate;
     float deltaTime = 0;
 
@@ -204,7 +266,7 @@ void Window::run ( ) {
         if ( this->isFlagEnabled(TITLE_CHANGED_FLAG)) {
             this->iSetFlag(TITLE_CHANGED_FLAG, false);
 
-            mainThreadRunner->scheduleAndWait ([this]() {
+            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
                 glfwSetWindowTitle(this->window, this->winTitle);
             });
 
@@ -213,7 +275,7 @@ void Window::run ( ) {
         if ( this->isFlagEnabled(DIMENSION_CHANGED_FLAG)) {
             this->iSetFlag(DIMENSION_CHANGED_FLAG, false);
 
-            mainThreadRunner->scheduleAndWait ([this]() -> void {
+            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
                 glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
                 glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
             });
@@ -232,6 +294,7 @@ void Window::run ( ) {
         
     }
 
+    this->isActive = false;
     this->destroy();
 
 }
@@ -241,14 +304,23 @@ bool Window::init () {
     std::lock_guard<std::mutex> lockA(this->localMtx);
     std::lock_guard<std::mutex> lockB(global_win_mtx);
 
-    if ( this->window ) {
+    if ( this->isDestroyed ) {
+        std::cout << "Attempted to initialized a destroyed window" << std::endl;
+        return false;
+    }
+
+    if ( this->isActive ) {
         std::cout << "Attempted to initialize a window twice" << std::endl;
         return false;
     }
 
-    return mainThreadRunner->scheduleAndWait ( [this]() -> bool {
+    std::cout << "Initializing window: " << this->winTitle << std::endl;
+    this->isActive = true;
 
-        if ( !isGlfwActive && !initGLFW() ) {
+    return mainThreadRunner->scheduleAndWait<bool> ( [this]() -> bool {
+
+        if ( !isGlfwActive && !initGlfw() ) {
+            std::cout << "Failed to initialize GLFW" << std::endl;
             return false;
         }
 
@@ -259,8 +331,9 @@ bool Window::init () {
         }
 
         this->thread = new std::thread(Window::run, this);
+        mainThreadRunner->addChild(this->thread);
+        
         windowCount++;
-
         return true;
 
     });
@@ -271,12 +344,16 @@ void Window::destroy () {
     std::lock_guard<std::mutex> lockA(this->localMtx);
     std::lock_guard<std::mutex> lockB(global_win_mtx);
 
+    if ( this->isDestroyed ) {
+        return;
+    }
+
     if ( (!this->thread) || (this->thread->get_id() != std::this_thread::get_id())) {
         this->shouldDestroy = true;
         return;
     }
 
-    mainThreadRunner->scheduleAndWait ( [this]() -> void {
+    mainThreadRunner->scheduleAndWait<void> ( [this]() -> void {
 
         if ( this->window ) {
             glfwDestroyWindow(this->window); 
@@ -284,14 +361,13 @@ void Window::destroy () {
             windowCount--;
         }
 
+        // delete this->thread; // TODO: THIS, MAYBE HASHMAP IT ON MAINTHREADRUNNER
+        this->isDestroyed = true;
+
         // Application shutdown.
         if ( !windowCount && isGlfwActive ) {  
-            glfwTerminate();
-            isGlfwActive = false;
+            mainThreadRunner->stop();
         }
-
-        std::free(this->winTitle);
-        delete this->thread;
 
     });
 
@@ -328,7 +404,7 @@ void Window::setVSyncEnabled ( bool enabled ) {
     }
 }
 
-void Window::setTitle ( char* newTitle ) {
+void Window::setTitle ( const char* newTitle ) {
     std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->winTitle != newTitle ) {
@@ -366,51 +442,6 @@ std::thread* Window::getThread () {
     return this->thread;
 }
 
-char* Window::getTitle ( ) {
+const char* Window::getTitle ( ) {
     return this->winTitle;
-}
-
-GLFWmonitor* Window::getMonitor ( ) {
-    
-    return mainThreadRunner->scheduleAndWait ([this]() -> GLFWmonitor* {
-
-        GLFWmonitor* monitor = glfwGetWindowMonitor( this->window ); 
-
-        if ( monitor ) {
-            return monitor;
-        }
-
-        int monitorCount = 0;
-        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount); 
-
-        GLFWmonitor* bestMonitor;
-        int bestArea = -1;
-        int area;
-
-        Rect2d monitorRect;
-        Rect2d winRect;
-
-        glfwGetWindowPos(window, &winRect.xPos, &winRect.yPos);
-        glfwGetWindowSize(window, &winRect.width, &winRect.height);
-
-        for ( int i = 0; i < monitorCount; ++i ) {
-
-            monitor = monitors[i];
-
-            glfwGetMonitorWorkarea(monitor, &monitorRect.xPos, &monitorRect.yPos, 
-                &monitorRect.width, &monitorRect.height);
-        
-            area = winRect.getIntersectionArea(monitorRect);
-
-            if ( bestArea < area ) {
-                bestMonitor = monitor;
-                bestArea = area;
-            }
-
-        }
-
-        return bestMonitor; // return value
-
-    });
-
 }

@@ -1,6 +1,5 @@
 
 #include "MainThreadRunner.h"
-#include <future>
 
 void MainThreadRunner::start( ) {
 
@@ -9,14 +8,22 @@ void MainThreadRunner::start( ) {
         return;
     }
 
+    this->mtx.lock();
+    
     std::queue<std::function<void()>> scheduleCopy;
     std::function<void()> task;
-    this->shouldRun = true;
+    this->isRunning = true;
 
-    while ( this->shouldRun ) {
+    this->mtx.unlock();
+
+    while ( this->isRunning || !this->scheduledTasks.empty() ) {
 
         for ( auto& task : this->continuousTasks ) {
             task();
+        }
+
+        if ( scheduledTasks.empty() ) {
+            continue;
         }
 
         this->mtx.lock();
@@ -37,39 +44,45 @@ void MainThreadRunner::start( ) {
         
     }
 
+    std::cout << "Waiting for child threads to shutdown" << std::endl;
+
+    for ( auto thread : this->childThreads ) {
+        thread->join();
+    }
+
 }
 
-void MainThreadRunner::runEveryFrame ( std::function<void()> func ) {
-    std::lock_guard<std::mutex> lock(mtx);
+void MainThreadRunner::addRepeating ( std::function<void()> func ) {
+    std::lock_guard<std::mutex> lock(this->mtx);
 
     if ( this->isRunning ) {
         std::cout << "Attempted to add a continuous function to an already executing thread.";
-        return;
+    } else {
+        this->continuousTasks.push_back(func);
     }
-
-    this->continuousTasks.push_back(func);
-}
-
-template<typename T>
-T MainThreadRunner::scheduleAndWait ( std::function<T()> func ) {
-
-    std::promise<T> done;
-    std::future<T> fut = done.get_future();
-
-    this->schedule([&func, &done]() -> void {
-        done.set_value(func());
-    });
-
-    return fut.get();
-
 }
 
 void MainThreadRunner::schedule ( std::function<void()> func ) {
+
+    this->mtx.lock();
+
+    if ( std::this_thread::get_id() != this->threadId ) {
+        this->scheduledTasks.push(func);
+        this->mtx.unlock();
+    } 
+    
+    else {
+        this->mtx.unlock();
+        func();
+    }
+}
+
+void MainThreadRunner::addChild (std::thread* child) {
     std::lock_guard<std::mutex> lock(mtx);
-    this->scheduledTasks.push(func);
+    this->childThreads.push_back(child);
 }
 
 void MainThreadRunner::stop () {
     std::lock_guard<std::mutex> lock(mtx);
-    this->shouldRun = false;
+    this->isRunning = false;
 }
