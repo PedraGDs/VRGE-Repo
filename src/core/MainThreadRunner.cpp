@@ -79,7 +79,12 @@ void MainThreadRunner::schedule ( std::function<void()> func ) {
 
 void MainThreadRunner::addChild (std::thread* child) {
     std::lock_guard<std::mutex> lock(mtx);
-    this->childThreads.push_back(child);
+    this->childThreads.insert(child);
+}
+
+void MainThreadRunner::removeChild (std::thread* child) {
+    std::lock_guard<std::mutex> lock(mtx);
+    this->childThreads.erase(child);
 }
 
 void MainThreadRunner::stop () {

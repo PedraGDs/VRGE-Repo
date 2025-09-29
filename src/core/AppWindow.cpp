@@ -381,12 +381,16 @@ void AppWindow::destroy () {
             windowCount--;
         }
 
-        // delete this->thread; // TODO: THIS, MAYBE HASHMAP IT ON MAIN_THREAD_RUNNER
         this->isDestroyed = true;
 
         // Application shutdown.
         if ( !windowCount && isGlfwActive ) {  
             mainThreadRunner->stop();
+        } 
+        
+        else {
+            mainThreadRunner->removeChild(this->thread);
+            delete this->thread;
         }
 
     });

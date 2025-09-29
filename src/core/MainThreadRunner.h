@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <unordered_set>
 #include <functional>
 #include <iostream>
 #include <thread>
@@ -15,7 +16,7 @@ class MainThreadRunner {
         std::chrono::duration<double> sleepTime { 1.0 / 120.0 };
         std::vector<std::function<void()>> continuousTasks{};
         std::queue<std::function<void()>> scheduledTasks{};
-        std::vector<std::thread*> childThreads{};
+        std::unordered_set<std::thread*> childThreads{};
         std::atomic<bool> isRunning = false;
         std::thread::id threadId;
         std::mutex mtx{};
@@ -32,6 +33,7 @@ class MainThreadRunner {
         void stop ();
 
         void addChild (std::thread* child);
+        void removeChild (std::thread* child);
 
         template<typename T> 
         T scheduleAndWait ( std::function<T ()> func ) {
