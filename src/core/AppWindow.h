@@ -1,17 +1,18 @@
 
 #pragma once
 
+#include <mutex>
 #include <cmath>
 #include <thread>
 #include <atomic>
-#include <mutex>
+#include <chrono>
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
 #include "util/Colors.h"
 #include "util/Vectors.h"
 #include "util/math/Rect2d.h"
 
-static constexpr Rect2d defaultAppWindowDimensions( 0, 0, 1024, 720 );
+static constexpr Rect2d defaultAppWindowDimensions( 0, 0, 854, 480 );
 static constexpr Color4f AppWindowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
 
 // GLFW && Glad
@@ -28,6 +29,7 @@ class AppWindow {
         std::mutex localMtx{};
         Vector2i bufferSize{};
 
+        std::chrono::high_resolution_clock::duration frameTime{};
         Rect2d dimensions = defaultAppWindowDimensions;
         float maxFrameRate = INFINITY;
         bool fullscreenEnabled = false;
@@ -37,14 +39,17 @@ class AppWindow {
 
         bool isDestroyed = false;
         bool isActive = false;
+        bool visible = true;
 
         void run();
         void render( float deltaTime );
 
-        void iSetFlag ( uint8_t flag, bool enabled );
-        bool iIsFlagEnabled ( uint8_t flag );
-
         void iSetFullScreen ( );
+
+        void setFlag ( uint8_t flag, bool enabled );
+        bool isFlagEnabled ( uint8_t flag );
+        void applyChanges ( );
+
 
     public:
         bool initializeCentered = true;
@@ -73,6 +78,9 @@ class AppWindow {
         void setPos ( int xPos, int yPos, bool isCallback );
         inline void setPos ( int xPos, int yPos ) { this->setPos(xPos, yPos); }
         inline void setPos ( Vector2i pos ) { this->setPos(pos.X, pos.Y); }
+
+        void setVisible ( bool visible );
+        bool isVisible ( );
 
         void setMaxFrameRate ( float frameRate );
         float getMaxFrameRate ();

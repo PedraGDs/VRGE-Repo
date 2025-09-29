@@ -89,7 +89,7 @@ constexpr inline Vector2i operator* ( const Vector2i& val, float scale ) noexcep
 }
 
 constexpr inline Vector2i operator/ ( const Vector2i& val, float scale ) noexcept {
-    return val * ( 1.0F / scale );
+    return Vector2i(val.X / scale, val.Y / scale);
 }
 
 constexpr inline Vector2i operator+= ( Vector2i& valA, const Vector2i& ValB ) noexcept {

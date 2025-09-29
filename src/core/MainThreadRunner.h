@@ -37,6 +37,7 @@ class MainThreadRunner {
 
         template<typename T> 
         T scheduleAndWait ( std::function<T ()> func ) {
+
             std::promise<T> done;
             std::future<T> fut = done.get_future();
 
@@ -44,7 +45,9 @@ class MainThreadRunner {
                 if constexpr (std::is_void_v<T>) {
                     func();
                     done.set_value();
-                } else {
+                } 
+                
+                else {
                     done.set_value(func());
                 }
             });

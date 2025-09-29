@@ -10,7 +10,7 @@ void MainThreadRunner::start( ) {
 
     this->mtx.lock();
     
-    std::queue<std::function<void()>> scheduleCopy;
+    std::queue<std::function<void()>> scheduleCopy{};
     std::function<void()> task;
     this->isRunning = true;
 

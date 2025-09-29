@@ -4,6 +4,7 @@
 #ifdef __cplusplus
 #include <algorithm>
 #include "Vector2i.h"
+#include <string>
 #endif
 
 typedef struct Rect2d {
@@ -45,6 +46,11 @@ typedef struct Rect2d {
         return this->getIntersection(other).getArea();
     }
 
+    inline std::string toString ( ) const noexcept {
+        return "[ Pos: " + this->getPos().toString() + ", Size: " + this->getSize().toString() + " ]";
+    }
+
+
 #endif
 } Rect2d;
 
@@ -59,6 +65,10 @@ constexpr inline bool operator== ( Rect2d& valA, Rect2d& valB ) noexcept {
 constexpr inline bool operator!= ( Rect2d& valA, Rect2d& valB ) noexcept {
     return (valA.xPos != valB.xPos) || (valA.yPos != valB.yPos) && 
          (valA.width != valB.width) || (valA.height != valB.height);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Rect2d& rect) {
+    return os << rect.toString();
 }
 
 #endif

@@ -10,12 +10,14 @@ static std::mutex global_win_mtx;
 static bool isGlfwActive = false;
 static int windowCount = 0;
 
-constexpr uint8_t POSITION_CHANGED_FLAG      = 0b1;
-constexpr uint8_t SIZE_CHANGED_FLAG          = 0b10;
-constexpr uint8_t FULLSCREEN_CHANGED_FLAG    = 0b100;
-constexpr uint8_t FRAMERATE_CHANGED_FLAG     = 0b1000;
-constexpr uint8_t VSYNC_CHANGED_FLAG         = 0b10000;
-constexpr uint8_t TITLE_CHANGED_FLAG         = 0b100000;
+constexpr uint8_t POSITION_CHANGED_FLAG   = 0b1;
+constexpr uint8_t SIZE_CHANGED_FLAG       = 0b10;
+constexpr uint8_t FULLSCREEN_CHANGED_FLAG = 0b100;
+constexpr uint8_t FRAMERATE_CHANGED_FLAG  = 0b1000;
+constexpr uint8_t VSYNC_CHANGED_FLAG      = 0b10000;
+constexpr uint8_t TITLE_CHANGED_FLAG      = 0b100000;
+constexpr uint8_t ICON_CHANGED_FLAG       = 0b1000000;
+constexpr uint8_t VISIBILITY_CHANGED_FLAG = 0b10000000;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height); // update glad
@@ -149,6 +151,15 @@ void AppWindow::iSetFullScreen ( ) {
         glViewport(0, 0, this->dimensions.width, this->dimensions.height);
         windowCount++;
 
+        if ( this->visible ){
+            glfwShowWindow(this->window);
+        } 
+        
+        else {
+            glfwHideWindow(this->window);
+        }
+        
+
         glfwMakeContextCurrent(oldContext);
         windowMap[this->window] = this;
 
@@ -169,6 +180,10 @@ inline Rect2d getMonitorRect ( GLFWmonitor* monitor ) {
 
     return rect;
 
+}
+
+AppWindow::~AppWindow ( ) {
+    this->destroy();
 }
 
 GLFWmonitor* AppWindow::getMonitor ( ) {
@@ -208,13 +223,13 @@ GLFWmonitor* AppWindow::getMonitor ( ) {
 
         }
 
-        return bestMonitor; // return value
+        return bestMonitor; 
 
     });
 
 }
 
-void AppWindow::iSetFlag ( uint8_t flag, bool enabled ) {
+void AppWindow::setFlag ( uint8_t flag, bool enabled ) {
     
     if ( enabled ) {
         this->changedFlags |= flag;
@@ -224,12 +239,74 @@ void AppWindow::iSetFlag ( uint8_t flag, bool enabled ) {
 
 }
 
-bool AppWindow::iIsFlagEnabled ( uint8_t flag ) {
+bool AppWindow::isFlagEnabled ( uint8_t flag ) {
     return this->changedFlags & flag;
 };
 
-AppWindow::~AppWindow ( ) {
-    this->destroy();
+void AppWindow::applyChanges ( ) {
+
+    this->localMtx.lock();
+        
+    if ( this->isFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
+        this->setFlag(FRAMERATE_CHANGED_FLAG, false);
+
+        this->frameTime = highResClock::duration(
+            static_cast<highResClock::rep>(highResClock::period::den / this->maxFrameRate)
+        );
+    }
+
+    if ( this->isFlagEnabled(VSYNC_CHANGED_FLAG)) {
+        this->setFlag(VSYNC_CHANGED_FLAG, false);
+
+        glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
+    }
+
+    if ( this->isFlagEnabled(TITLE_CHANGED_FLAG)) {
+        this->setFlag(TITLE_CHANGED_FLAG, false);
+
+        mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
+            glfwSetWindowTitle(this->window, this->winTitle);
+        });
+    }
+
+    if ( this->isFlagEnabled(POSITION_CHANGED_FLAG) ) {
+        this->setFlag(POSITION_CHANGED_FLAG, false);
+
+        mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
+            glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+        });
+    }
+
+    if ( this->isFlagEnabled(SIZE_CHANGED_FLAG) ) {
+        this->setFlag(SIZE_CHANGED_FLAG, false);
+
+        mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
+            glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
+        });
+    }
+
+    if ( this->isFlagEnabled(VISIBILITY_CHANGED_FLAG)) {
+        this->setFlag(VISIBILITY_CHANGED_FLAG, false);
+            
+        mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
+            if ( this->visible ) {
+                glfwShowWindow(this->window);
+            } else {
+                glfwHideWindow(this->window);
+            }
+        });
+    }
+
+    // must be the last if-statement besides the mtx
+    if ( this->isFlagEnabled(FULLSCREEN_CHANGED_FLAG)) {
+        this->setFlag(FULLSCREEN_CHANGED_FLAG, false);
+
+        this->iSetFullScreen();
+    }
+
+    this->changedFlags = 0;
+    this->localMtx.unlock();
+
 }
 
 void AppWindow::render ( float deltaTime ) {
@@ -237,7 +314,7 @@ void AppWindow::render ( float deltaTime ) {
     // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
     // glClear(GL_COLOR_BUFFER_BIT);
 
-    std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
+    // std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
 }
 
 void AppWindow::run ( ) {
@@ -246,11 +323,8 @@ void AppWindow::run ( ) {
 
     float deltaTime = 0;
 
-    highResClock::duration frameTime( 
-        static_cast<highResClock::rep>(
-            highResClock::period::den / this->maxFrameRate
-        )
-    );
+    this-> frameTime = highResClock::duration ( 
+        static_cast<highResClock::rep>(highResClock::period::den / this->maxFrameRate));
 
     highResClock::time_point frameStart, frameEnd;
     highResClock::duration timeElapsed;
@@ -268,18 +342,33 @@ void AppWindow::run ( ) {
 
     mainThreadRunner->scheduleAndWait<void>([this]() -> void {
 
+        GLFWmonitor* monitor = this->getMonitor();
+        GLFWwindow* oldContext = glfwGetCurrentContext();
+        glfwMakeContextCurrent(this->window);
+
+        if ( this->visible ) {
+            glfwShowWindow ( this->window );
+        } 
+        
+        else {
+            glfwHideWindow ( this->window );
+        }
+
         if ( !this->initializeCentered ) {
             glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
             glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+            return;
         } 
-
-        GLFWmonitor* monitor = this->getMonitor();
 
         if ( monitor ) {
             Rect2d monitorRect = getMonitorRect(monitor);
             Vector2i newPos{};
 
-            newPos = monitorRect.getPos() + ((monitorRect.getSize() + this->dimensions.getSize()) / 2);
+            std::cout << glfwGetMonitorName ( monitor ) << std::endl;
+            std::cout << "Monitor rect " << monitorRect << std::endl;
+            std::cout << "Window rect " << dimensions << std::endl;
+
+            newPos = monitorRect.getPos() + ((monitorRect.getSize() - this->dimensions.getSize()) / 2);
             
             this->dimensions.xPos = newPos.X;
             this->dimensions.yPos = newPos.Y;
@@ -287,86 +376,39 @@ void AppWindow::run ( ) {
 
         glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
         glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
-        
+
+        glfwMakeContextCurrent(oldContext);
+
     });
 
     this->localMtx.unlock();
 
     while(!this->shouldDestroy && !glfwWindowShouldClose(this->window)) {
 
-        frameStart = highResClock::now();
+        if ( this->visible ) {
 
-        this->render(deltaTime);
-        glfwSwapBuffers(this->window);
+            frameStart = highResClock::now();
 
-        frameEnd = highResClock::now();
-        timeElapsed = frameEnd - frameStart;
-
-        if ( frameTime > timeElapsed ) {
-            sleepUntil ( frameStart + frameTime );
+            this->render(deltaTime);
+            glfwSwapBuffers(this->window);
 
             frameEnd = highResClock::now();
             timeElapsed = frameEnd - frameStart;
-        } 
-        
-        deltaTime = std::chrono::duration<float>(timeElapsed).count();
 
-        if ( !this->changedFlags ) {
-            continue;
-        }
+            if ( frameTime > timeElapsed ) {
+                sleepUntil ( frameStart + frameTime );
 
-        this->localMtx.lock();
-        
-        if ( this->iIsFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
-            this->iSetFlag(FRAMERATE_CHANGED_FLAG, false);
-
-            frameTime = highResClock::duration(
-                static_cast<highResClock::rep>(
-                    highResClock::period::den / this->maxFrameRate
-                )
-            );
-        }
-
-        if ( this->iIsFlagEnabled(VSYNC_CHANGED_FLAG)) {
-            this->iSetFlag(VSYNC_CHANGED_FLAG, false);
-
-            glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
-        }
-
-        if ( this->iIsFlagEnabled(TITLE_CHANGED_FLAG)) {
-            this->iSetFlag(TITLE_CHANGED_FLAG, false);
-
-            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
-                glfwSetWindowTitle(this->window, this->winTitle);
-            });
+                frameEnd = highResClock::now();
+                timeElapsed = frameEnd - frameStart;
+            } 
+                    
+            deltaTime = std::chrono::duration<float>(timeElapsed).count();
 
         }
 
-        if ( this->iIsFlagEnabled(POSITION_CHANGED_FLAG) ) {
-            this->iSetFlag(POSITION_CHANGED_FLAG, false);
-
-            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
-                glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
-            });
+        if ( this->changedFlags ) {
+            this->applyChanges();
         }
-
-        if ( this->iIsFlagEnabled(SIZE_CHANGED_FLAG) ) {
-            this->iSetFlag(SIZE_CHANGED_FLAG, false);
-
-            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
-                glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
-            });
-        }
-
-        // must be the last if-statement besides the mtx
-        if ( this->iIsFlagEnabled(FULLSCREEN_CHANGED_FLAG)) {
-            this->iSetFlag(FULLSCREEN_CHANGED_FLAG, false);
-
-            this->iSetFullScreen();
-        }
-
-        this->changedFlags = 0;
-        this->localMtx.unlock();
         
     }
 
@@ -450,18 +492,17 @@ void AppWindow::destroy () {
             delete this->thread;
         }
 
-
     });
 
 }
 
 void AppWindow::setDimensions ( Rect2d dims ) {
 
-    std::lock_guard<std::mutex> lock(this->localMtx);
-
     if ( this->dimensions != dims ) {
-        this->iSetFlag(POSITION_CHANGED_FLAG, true);
-        this->iSetFlag(SIZE_CHANGED_FLAG, true);
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->setFlag(POSITION_CHANGED_FLAG, true);
+        this->setFlag(SIZE_CHANGED_FLAG, true);
         this->dimensions = dims;
     }
 
@@ -469,20 +510,20 @@ void AppWindow::setDimensions ( Rect2d dims ) {
 
 void AppWindow::setSize ( int width, int height, bool isCallback ) {
     
-    std::lock_guard<std::mutex> lock(this->localMtx);
-
     if ( this->dimensions.width == width && this->dimensions.height == height ) {
         return;
     }
 
+    std::lock_guard<std::mutex> lock(this->localMtx);
+
     if ( isCallback ) {
-        this->iSetFlag(SIZE_CHANGED_FLAG, false); // tells the run loop to ignore the change
+        this->setFlag(SIZE_CHANGED_FLAG, false); // tells the run loop to ignore the change
         this->dimensions.height = height;
         this->dimensions.width = width;
     } 
 
     else {
-        this->iSetFlag(SIZE_CHANGED_FLAG, true);
+        this->setFlag(SIZE_CHANGED_FLAG, true);
         this->dimensions.height = height;
         this->dimensions.width = width;
     }
@@ -490,69 +531,87 @@ void AppWindow::setSize ( int width, int height, bool isCallback ) {
 
 void AppWindow::setPos ( int xPos, int yPos, bool isCallback ) {
 
-    std::lock_guard<std::mutex> lock(this->localMtx);
-
     if ( this->dimensions.xPos == xPos && this->dimensions.yPos == yPos ) {
         return;
     }
 
+    std::lock_guard<std::mutex> lock(this->localMtx);
+
     if ( isCallback ) {
-        this->iSetFlag(POSITION_CHANGED_FLAG, false); // tells the run loop to ignore the change
+        this->setFlag(POSITION_CHANGED_FLAG, false); // tells the run loop to ignore the change
         this->dimensions.xPos = xPos;
         this->dimensions.yPos = yPos;
     }
 
     else {
-        this->iSetFlag(POSITION_CHANGED_FLAG, true);
+        this->setFlag(POSITION_CHANGED_FLAG, true);
         this->dimensions.xPos = xPos;
         this->dimensions.yPos = yPos;
+    }
+
+}
+
+void AppWindow::setVisible ( bool enabled ) {
+
+    if ( this->visible != enabled ) {
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->setFlag(VISIBILITY_CHANGED_FLAG, true);
+        this->visible = enabled;
     }
 
 }
 
 void AppWindow::setMaxFrameRate ( float frameRate ) {
 
-    std::lock_guard<std::mutex> lock(this->localMtx);
-
     if ( this->maxFrameRate != frameRate ) {
-        this->iSetFlag(FRAMERATE_CHANGED_FLAG, true);
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->setFlag(FRAMERATE_CHANGED_FLAG, true);
         this->maxFrameRate = frameRate;
     }
 
 }
 
 void AppWindow::setVSyncEnabled ( bool enabled ) {
-    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->vSyncEnabled != enabled ) {
-        this->iSetFlag(VSYNC_CHANGED_FLAG, true);
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->setFlag(VSYNC_CHANGED_FLAG, true);
         this->vSyncEnabled = enabled;
     }
 }
 
 void AppWindow::setTitle ( const char* newTitle ) {
-    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->winTitle != newTitle ) {
-        this->iSetFlag(TITLE_CHANGED_FLAG, true);
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->setFlag(TITLE_CHANGED_FLAG, true);
         this->winTitle = newTitle;
     }
 }
 
 void AppWindow::setFullScreen ( bool enabled ) {
-    std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->fullscreenEnabled != enabled ) {
-        this->iSetFlag(FULLSCREEN_CHANGED_FLAG, true);
+        std::lock_guard<std::mutex> lock(this->localMtx);
+        
+        this->setFlag(FULLSCREEN_CHANGED_FLAG, true);
         this->fullscreenEnabled = enabled;
     }
 }
 
 void AppWindow::setBufferSize ( int width, int height ) {
-    std::lock_guard<std::mutex> lock(this->localMtx);
 
-    this->bufferSize.X = width;
-    this->bufferSize.Y = height;
+    if ( this->bufferSize.X != width && this->bufferSize.Y != height ) {
+        std::lock_guard<std::mutex> lock(this->localMtx);
+
+        this->bufferSize.X = width;
+        this->bufferSize.Y = height;
+    }
+
 }
 
 Vector2i AppWindow::getBufferSize () {
@@ -573,6 +632,10 @@ Vector2i AppWindow::getPos () {
 
 bool AppWindow::isFullScreen ( ) {
     return this->fullscreenEnabled;
+}
+
+bool AppWindow::isVisible ( ) {
+    return this->visible;
 }
 
 bool AppWindow::isVSyncEnabled ( ) {
