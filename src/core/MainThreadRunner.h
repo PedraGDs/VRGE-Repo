@@ -17,9 +17,12 @@ class MainThreadRunner {
         std::vector<std::function<void()>> continuousTasks{};
         std::queue<std::function<void()>> scheduledTasks{};
         std::unordered_set<std::thread*> childThreads{};
+        std::atomic<bool> isShuttingDown = false;
         std::atomic<bool> isRunning = false;
         std::thread::id threadId;
         std::mutex mtx{};
+
+        void waitForChildren();
 
     public:
         MainThreadRunner ( ) {

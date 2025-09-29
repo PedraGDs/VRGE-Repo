@@ -363,17 +363,16 @@ void AppWindow::run ( ) {
         if ( monitor ) {
             Rect2d monitorRect = getMonitorRect(monitor);
             Vector2i newPos{};
-
-            std::cout << glfwGetMonitorName ( monitor ) << std::endl;
-            std::cout << "Monitor rect " << monitorRect << std::endl;
-            std::cout << "Window rect " << dimensions << std::endl;
-
+            
+            std::cout << "Initialized window on: " << glfwGetMonitorName(monitor) << std::endl;
             newPos = monitorRect.getPos() + ((monitorRect.getSize() - this->dimensions.getSize()) / 2);
             
             this->dimensions.xPos = newPos.X;
             this->dimensions.yPos = newPos.Y;
         }
 
+        std::cout << "Window Rect: " << this->dimensions << std::endl;
+        
         glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
         glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
 

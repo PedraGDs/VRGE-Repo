@@ -1,6 +1,25 @@
 
 #include "MainThreadRunner.h"
 
+void MainThreadRunner::waitForChildren ( ) {
+
+    std::cout << "Waiting for child threads to shutdown" << std::endl;
+    std::unique_lock<std::mutex> lock(this->mtx);
+
+    while ( !this->childThreads.empty() ) {
+        
+        auto thread = *this->childThreads.begin();
+        this->mtx.unlock();
+
+        thread->join();
+
+        this->mtx.lock();
+        this->childThreads.erase(thread);
+    
+    }
+
+}
+
 void MainThreadRunner::start( ) {
 
     if ( std::this_thread::get_id() != this->threadId ) {
@@ -12,6 +31,8 @@ void MainThreadRunner::start( ) {
     
     std::queue<std::function<void()>> scheduleCopy{};
     std::function<void()> task;
+
+    this->isShuttingDown = false;
     this->isRunning = true;
 
     this->mtx.unlock();
@@ -36,20 +57,17 @@ void MainThreadRunner::start( ) {
         this->mtx.unlock();
 
         while ( !scheduleCopy.empty() ) {
-            scheduleCopy.front()();
+            task = scheduleCopy.front();
             scheduleCopy.pop();
+            task();
         }
 
         std::this_thread::sleep_for(this->sleepTime);
         
     }
 
-    std::cout << "Waiting for child threads to shutdown" << std::endl;
-
-    for ( auto thread : this->childThreads ) {
-        thread->join();
-    }
-
+    this->waitForChildren(); // wait for global shutdown
+    
 }
 
 void MainThreadRunner::addRepeating ( std::function<void()> func ) {
@@ -57,14 +75,22 @@ void MainThreadRunner::addRepeating ( std::function<void()> func ) {
 
     if ( this->isRunning ) {
         std::cout << "Attempted to add a continuous function to an already executing thread.";
-    } else {
+    }
+    
+    else {
         this->continuousTasks.push_back(func);
     }
+
 }
 
 void MainThreadRunner::schedule ( std::function<void()> func ) {
 
     this->mtx.lock();
+
+    if ( this->isShuttingDown ) {
+        std::cout << "Unable to schedule changes to MainThread during shutdown" << std::endl;
+        return;
+    }
 
     if ( std::this_thread::get_id() != this->threadId ) {
         this->scheduledTasks.push(func);
@@ -89,5 +115,6 @@ void MainThreadRunner::removeChild (std::thread* child) {
 
 void MainThreadRunner::stop () {
     std::lock_guard<std::mutex> lock(mtx);
+    this->isShuttingDown = true;
     this->isRunning = false;
 }
