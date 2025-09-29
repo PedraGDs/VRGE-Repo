@@ -47,7 +47,7 @@ typedef struct Rect2d {
     }
 
     inline std::string toString ( ) const noexcept {
-        return "[ Pos: " + this->getPos().toString() + ", Size: " + this->getSize().toString() + " ]";
+        return "[Pos: " + this->getPos().toString() + ", Size: " + this->getSize().toString() + "]";
     }
 
 

@@ -20,6 +20,9 @@ static constexpr Color4f AppWindowBackgroundColor(0.07F, 0.13F, 0.17F, 1.0F);
 bool initGlfw ();
 void stopGlfw ();
 
+class AppWindow; // foward
+AppWindow* getAppWindow ( GLFWwindow* window );
+
 class AppWindow {
     
     private:

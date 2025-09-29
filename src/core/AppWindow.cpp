@@ -1,5 +1,6 @@
 
 #include <unordered_map>
+#include "input/InputHandler.h"
 #include "MainThreadRunner.h"
 #include "AppWindow.h"
 
@@ -18,6 +19,10 @@ constexpr uint8_t VSYNC_CHANGED_FLAG      = 0b10000;
 constexpr uint8_t TITLE_CHANGED_FLAG      = 0b100000;
 constexpr uint8_t ICON_CHANGED_FLAG       = 0b1000000;
 constexpr uint8_t VISIBILITY_CHANGED_FLAG = 0b10000000;
+
+AppWindow* getAppWindow ( GLFWwindow* window ) {
+    return windowMap[window];
+}
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height); // update glad
@@ -102,6 +107,7 @@ GLFWwindow* createGLFWWindow ( const char* winTitle, bool isFullScreen,
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetWindowSizeCallback(window, window_size_callback);
         glfwSetWindowPosCallback(window, window_pos_callback);
+        glfwSetKeyCallback(window, key_callback);
     }
     
     return window;
@@ -364,7 +370,7 @@ void AppWindow::run ( ) {
             Rect2d monitorRect = getMonitorRect(monitor);
             Vector2i newPos{};
             
-            std::cout << "Initialized window on: " << glfwGetMonitorName(monitor) << std::endl;
+            std::cout << "Initialized window on \"" << glfwGetMonitorName(monitor) << "\"" << std::endl;
             newPos = monitorRect.getPos() + ((monitorRect.getSize() - this->dimensions.getSize()) / 2);
             
             this->dimensions.xPos = newPos.X;
@@ -458,12 +464,12 @@ bool AppWindow::init ( ) {
 
 void AppWindow::destroy () {
 
-    std::lock_guard<std::mutex> lockA(this->localMtx);
-    std::lock_guard<std::mutex> lockB(global_win_mtx);
-
     if ( this->isDestroyed ) {
         return;
     }
+
+    std::lock_guard<std::mutex> lockA(this->localMtx);
+    std::lock_guard<std::mutex> lockB(global_win_mtx);
 
     if ( (!this->thread) || (this->thread->get_id() != std::this_thread::get_id())) {
         this->shouldDestroy = true;

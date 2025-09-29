@@ -63,9 +63,7 @@ typedef struct Vector2i
     }
 
     inline std::string toString ( ) const noexcept {
-        return "( " + 
-            std::to_string(this->X) + ", " + 
-            std::to_string(this->Y) + " )";
+        return "(" + std::to_string(this->X) + ", " + std::to_string(this->Y) + ")";
     }
 
 #endif // cplusplus
