@@ -130,7 +130,7 @@ constexpr inline bool operator!= ( Vector2f& valA, Vector2f& valB ) noexcept {
     return valA.X != valB.X || valA.Y != valB.Y;
 }
 
-std::ostream& operator<<(std::ostream& os, const Vector2f& val) {
+inline std::ostream& operator<<(std::ostream& os, const Vector2f& val) {
     return os << val.toString();
 }
 

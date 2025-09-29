@@ -8,6 +8,7 @@
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
 #include "util/Colors.h"
+#include "util/Vectors.h"
 #include "util/math/Rect2d.h"
 
 static constexpr Rect2d defaultAppWindowDimensions( 0, 0, 1024, 720 );
@@ -25,7 +26,8 @@ class AppWindow {
         std::thread* thread = nullptr;
         GLFWwindow* window = nullptr;
         std::mutex localMtx{};
-        
+        Vector2i bufferSize{};
+
         Rect2d dimensions = defaultAppWindowDimensions;
         float maxFrameRate = INFINITY;
         bool fullscreenEnabled = false;
@@ -40,17 +42,19 @@ class AppWindow {
         void render( float deltaTime );
 
         void iSetFlag ( uint8_t flag, bool enabled );
-        bool isFlagEnabled ( uint8_t flag );
+        bool iIsFlagEnabled ( uint8_t flag );
 
         void iSetFullScreen ( );
 
     public:
+        bool initializeCentered = true;
+
         inline AppWindow ( const char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title) { }
         inline AppWindow ( const char* title ) noexcept: winTitle(title) { }
 
         ~AppWindow ();
 
-        bool init ();
+        bool init ( );
         void destroy ();
 
         std::thread* getThread ();
@@ -58,6 +62,17 @@ class AppWindow {
 
         void setDimensions ( Rect2d dimensions );
         Rect2d getDimensions ();
+
+        Vector2i getSize ();
+        Vector2i getPos ();
+
+        void setSize ( int width, int height, bool isCallback );
+        inline void setSize ( int width, int height ) { this->setSize(width, height, false); }
+        inline void setSize ( Vector2i size ) { this->setSize(size.X, size.Y); }
+
+        void setPos ( int xPos, int yPos, bool isCallback );
+        inline void setPos ( int xPos, int yPos ) { this->setPos(xPos, yPos); }
+        inline void setPos ( Vector2i pos ) { this->setPos(pos.X, pos.Y); }
 
         void setMaxFrameRate ( float frameRate );
         float getMaxFrameRate ();
@@ -70,5 +85,9 @@ class AppWindow {
 
         void setFullScreen ( bool enabled );
         bool isFullScreen ();
+
+        void setBufferSize ( int width, int height ); // callback
+        Vector2i getBufferSize ();
+
         
 };

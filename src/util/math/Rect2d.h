@@ -3,6 +3,7 @@
 
 #ifdef __cplusplus
 #include <algorithm>
+#include "Vector2i.h"
 #endif
 
 typedef struct Rect2d {
@@ -12,6 +13,14 @@ typedef struct Rect2d {
     constexpr inline Rect2d() noexcept: xPos(0), yPos(0), width(0), height(0) { }
     constexpr inline Rect2d ( int x, int y, int w, int h) noexcept: xPos(x), yPos(y), width(w), height(h){}
     
+    constexpr inline Vector2i getPos () const noexcept {
+        return Vector2i(this->xPos, this->yPos);
+    }
+
+    constexpr inline Vector2i getSize () const noexcept {
+        return Vector2i(this->width, this->height);
+    }
+
     constexpr inline int getArea ( ) const noexcept {
         return this->width * this->height;
     }

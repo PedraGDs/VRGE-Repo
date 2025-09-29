@@ -1,21 +1,34 @@
 
+#include <unordered_map>
 #include "MainThreadRunner.h"
 #include "AppWindow.h"
 
 using highResClock = std::chrono::high_resolution_clock;
 
+static std::unordered_map<GLFWwindow*, AppWindow*> windowMap{};
 static std::mutex global_win_mtx;
 static bool isGlfwActive = false;
 static int windowCount = 0;
 
-constexpr uint8_t DIMENSION_CHANGED_FLAG  = 0b1;
-constexpr uint8_t FULLSCREEN_CHANGED_FLAG = 0b10;
-constexpr uint8_t FRAMERATE_CHANGED_FLAG  = 0b100;
-constexpr uint8_t VSYNC_CHANGED_FLAG      = 0b1000;
-constexpr uint8_t TITLE_CHANGED_FLAG      = 0b10000;
+constexpr uint8_t POSITION_CHANGED_FLAG      = 0b1;
+constexpr uint8_t SIZE_CHANGED_FLAG          = 0b10;
+constexpr uint8_t FULLSCREEN_CHANGED_FLAG    = 0b100;
+constexpr uint8_t FRAMERATE_CHANGED_FLAG     = 0b1000;
+constexpr uint8_t VSYNC_CHANGED_FLAG         = 0b10000;
+constexpr uint8_t TITLE_CHANGED_FLAG         = 0b100000;
+constexpr uint8_t CALLBACK_FLAG              = 0b1000000;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, width, height); // update glad
+    windowMap[window]->setBufferSize(width, height);
+}
+
+void window_size_callback(GLFWwindow* window, int width, int height) {
+    windowMap[window]->setSize(width, height, true);
+}
+
+void window_pos_callback(GLFWwindow* window, int xPos, int yPos) {
+    windowMap[window]->setPos(xPos, yPos, true);
 }
 
 inline void sleepUntil ( highResClock::time_point target ) {
@@ -28,7 +41,6 @@ inline void sleepUntil ( highResClock::time_point target ) {
 
 }
 
-// GLFW && Glad
 // Must only be called from the main thread.
 bool initGlfw ( ) { 
 
@@ -66,7 +78,7 @@ GLFWwindow* createGLFWWindow ( const char* winTitle, bool isFullScreen,
     GLFWmonitor* monitor, Rect2d& rect ) {
 
     const GLFWvidmode* mode = nullptr;
-    GLFWwindow* window;
+    GLFWwindow* window, *oldContext;
 
     if ( isFullScreen ) {
         if ( !monitor ) {
@@ -87,6 +99,8 @@ GLFWwindow* createGLFWWindow ( const char* winTitle, bool isFullScreen,
 
     if ( window ) {
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+        glfwSetWindowSizeCallback(window, window_size_callback);
+        glfwSetWindowPosCallback(window, window_pos_callback);
     }
     
     return window;
@@ -103,6 +117,7 @@ void AppWindow::iSetFullScreen ( ) {
 
         if ( this->window ) {
             glfwDestroyWindow(this->window);
+            windowMap.erase(this->window);
             windowCount--;
         }
 
@@ -136,12 +151,24 @@ void AppWindow::iSetFullScreen ( ) {
         windowCount++;
 
         glfwMakeContextCurrent(oldContext);
+        windowMap[this->window] = this;
+
         return true;
     });
 
     if ( succeeded ) {
         glfwMakeContextCurrent(this->window);
     }
+
+}
+
+inline Rect2d getMonitorRect ( GLFWmonitor* monitor ) {
+    
+    Rect2d rect{};
+
+    glfwGetMonitorWorkarea(monitor, &rect.xPos, &rect.yPos, &rect.width, &rect.height);
+
+    return rect;
 
 }
 
@@ -171,10 +198,8 @@ GLFWmonitor* AppWindow::getMonitor ( ) {
         for ( int i = 0; i < monitorCount; ++i ) {
 
             monitor = monitors[i];
+            monitorRect = getMonitorRect(monitor);
 
-            glfwGetMonitorWorkarea(monitor, &monitorRect.xPos, &monitorRect.yPos, 
-                &monitorRect.width, &monitorRect.height);
-        
             area = winRect.getIntersectionArea(monitorRect);
 
             if ( bestArea < area ) {
@@ -200,7 +225,7 @@ void AppWindow::iSetFlag ( uint8_t flag, bool enabled ) {
 
 }
 
-bool AppWindow::isFlagEnabled ( uint8_t flag ) {
+bool AppWindow::iIsFlagEnabled ( uint8_t flag ) {
     return this->changedFlags & flag;
 };
 
@@ -217,6 +242,8 @@ void AppWindow::render ( float deltaTime ) {
 }
 
 void AppWindow::run ( ) {
+
+    this->localMtx.lock();
 
     float deltaTime = 0;
 
@@ -237,9 +264,34 @@ void AppWindow::run ( ) {
         return;
     }
 
-    glfwSwapBuffers(this->window);
+    windowMap[this->window] = this;
     glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
-    glViewport(0, 0, this->dimensions.width, this->dimensions.height);
+
+    mainThreadRunner->scheduleAndWait<void>([this]() -> void {
+
+        if ( !this->initializeCentered ) {
+            glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
+            glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+        } 
+
+        GLFWmonitor* monitor = this->getMonitor();
+
+        if ( monitor ) {
+            Rect2d monitorRect = getMonitorRect(monitor);
+            Vector2i newPos{};
+
+            newPos = monitorRect.getPos() + ((monitorRect.getSize() + this->dimensions.getSize()) / 2);
+            
+            this->dimensions.xPos = newPos.X;
+            this->dimensions.yPos = newPos.Y;
+        }
+
+        glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
+        glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+        
+    });
+
+    this->localMtx.unlock();
 
     while(!this->shouldDestroy && !glfwWindowShouldClose(this->window)) {
 
@@ -266,7 +318,7 @@ void AppWindow::run ( ) {
 
         this->localMtx.lock();
         
-        if ( this->isFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
+        if ( this->iIsFlagEnabled(FRAMERATE_CHANGED_FLAG)) {
             this->iSetFlag(FRAMERATE_CHANGED_FLAG, false);
 
             frameTime = highResClock::duration(
@@ -274,16 +326,15 @@ void AppWindow::run ( ) {
                     highResClock::period::den / this->maxFrameRate
                 )
             );
-
         }
 
-        if ( this->isFlagEnabled(VSYNC_CHANGED_FLAG)) {
+        if ( this->iIsFlagEnabled(VSYNC_CHANGED_FLAG)) {
             this->iSetFlag(VSYNC_CHANGED_FLAG, false);
 
             glfwSwapInterval( this->vSyncEnabled ? 1 : 0 );
         }
 
-        if ( this->isFlagEnabled(TITLE_CHANGED_FLAG)) {
+        if ( this->iIsFlagEnabled(TITLE_CHANGED_FLAG)) {
             this->iSetFlag(TITLE_CHANGED_FLAG, false);
 
             mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
@@ -292,18 +343,24 @@ void AppWindow::run ( ) {
 
         }
 
-        if ( this->isFlagEnabled(DIMENSION_CHANGED_FLAG)) {
-            this->iSetFlag(DIMENSION_CHANGED_FLAG, false);
+        if ( this->iIsFlagEnabled(POSITION_CHANGED_FLAG) ) {
+            this->iSetFlag(POSITION_CHANGED_FLAG, false);
+
+            mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
+                glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
+            });
+        }
+
+        if ( this->iIsFlagEnabled(SIZE_CHANGED_FLAG) ) {
+            this->iSetFlag(SIZE_CHANGED_FLAG, false);
 
             mainThreadRunner->scheduleAndWait<void> ([this]() -> void {
                 glfwSetWindowSize(this->window, this->dimensions.width, this->dimensions.height);
-                glfwSetWindowPos(this->window, this->dimensions.xPos, this->dimensions.yPos);
             });
-
         }
 
         // must be the last if-statement besides the mtx
-        if ( this->isFlagEnabled(FULLSCREEN_CHANGED_FLAG)) {
+        if ( this->iIsFlagEnabled(FULLSCREEN_CHANGED_FLAG)) {
             this->iSetFlag(FULLSCREEN_CHANGED_FLAG, false);
 
             this->iSetFullScreen();
@@ -319,7 +376,7 @@ void AppWindow::run ( ) {
 
 }
 
-bool AppWindow::init () { 
+bool AppWindow::init ( ) { 
 
     std::lock_guard<std::mutex> lockA(this->localMtx);
     std::lock_guard<std::mutex> lockB(global_win_mtx);
@@ -382,6 +439,7 @@ void AppWindow::destroy () {
         }
 
         this->isDestroyed = true;
+        windowMap.erase(this->window);
 
         // Application shutdown.
         if ( !windowCount && isGlfwActive ) {  
@@ -393,6 +451,7 @@ void AppWindow::destroy () {
             delete this->thread;
         }
 
+
     });
 
 }
@@ -402,8 +461,52 @@ void AppWindow::setDimensions ( Rect2d dims ) {
     std::lock_guard<std::mutex> lock(this->localMtx);
 
     if ( this->dimensions != dims ) {
-        this->iSetFlag(DIMENSION_CHANGED_FLAG, true);
+        this->iSetFlag(POSITION_CHANGED_FLAG, true);
+        this->iSetFlag(SIZE_CHANGED_FLAG, true);
         this->dimensions = dims;
+    }
+
+}
+
+void AppWindow::setSize ( int width, int height, bool isCallback ) {
+    
+    std::lock_guard<std::mutex> lock(this->localMtx);
+
+    if ( this->dimensions.width == width && this->dimensions.height == height ) {
+        return;
+    }
+
+    if ( isCallback ) {
+        this->iSetFlag(SIZE_CHANGED_FLAG, false); // tells the run loop to ignore the change
+        this->dimensions.height = height;
+        this->dimensions.width = width;
+    } 
+
+    else {
+        this->iSetFlag(SIZE_CHANGED_FLAG, true);
+        this->dimensions.height = height;
+        this->dimensions.width = width;
+    }
+}
+
+void AppWindow::setPos ( int xPos, int yPos, bool isCallback ) {
+
+    std::lock_guard<std::mutex> lock(this->localMtx);
+
+    if ( this->dimensions.xPos == xPos && this->dimensions.yPos == yPos ) {
+        return;
+    }
+
+    if ( isCallback ) {
+        this->iSetFlag(POSITION_CHANGED_FLAG, false); // tells the run loop to ignore the change
+        this->dimensions.xPos = xPos;
+        this->dimensions.yPos = yPos;
+    }
+
+    else {
+        this->iSetFlag(POSITION_CHANGED_FLAG, true);
+        this->dimensions.xPos = xPos;
+        this->dimensions.yPos = yPos;
     }
 
 }
@@ -446,8 +549,27 @@ void AppWindow::setFullScreen ( bool enabled ) {
     }
 }
 
+void AppWindow::setBufferSize ( int width, int height ) {
+    std::lock_guard<std::mutex> lock(this->localMtx);
+
+    this->bufferSize.X = width;
+    this->bufferSize.Y = height;
+}
+
+Vector2i AppWindow::getBufferSize () {
+    return this->bufferSize;
+}
+
 Rect2d AppWindow::getDimensions () {
     return this->dimensions;
+}
+
+Vector2i AppWindow::getSize () {
+    return Vector2i(this->dimensions.width, this->dimensions.height);
+}
+
+Vector2i AppWindow::getPos () {
+    return Vector2i(this->dimensions.xPos, this->dimensions.yPos);
 }
 
 bool AppWindow::isFullScreen ( ) {

@@ -10,15 +10,15 @@ extern "C" {
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-    static inline float floorf ( float x ) { return __builtin_floorf(x); }
-    static inline float ceilf ( float x )  { return __builtin_ceilf(x);  }
-    static inline float roundf ( float x ) { return __builtin_roundf(x); }
-    static inline float sqrtf ( float x )  { return __builtin_sqrtf(x);  }
+    inline float floorf ( float x ) { return __builtin_floorf(x); }
+    inline float ceilf ( float x )  { return __builtin_ceilf(x);  }
+    inline float roundf ( float x ) { return __builtin_roundf(x); }
+    inline float sqrtf ( float x )  { return __builtin_sqrtf(x);  }
 #else
-    static inline float floorf ( float x ) { return floor(x); }
-    static inline float ceilf ( float x )  { return ceil(x);  }
-    static inline float roundf ( float x ) { return round(x); }
-    static inline float sqrtf ( float x )  { return sqrt(x);  }
+    inline float floorf ( float x ) { return floor(x); }
+    inline float ceilf ( float x )  { return ceil(x);  }
+    inline float roundf ( float x ) { return round(x); }
+    inline float sqrtf ( float x )  { return sqrt(x);  }
 #endif
 
 #ifdef __cplusplus
