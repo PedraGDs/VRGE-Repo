@@ -16,7 +16,6 @@ constexpr uint8_t FULLSCREEN_CHANGED_FLAG    = 0b100;
 constexpr uint8_t FRAMERATE_CHANGED_FLAG     = 0b1000;
 constexpr uint8_t VSYNC_CHANGED_FLAG         = 0b10000;
 constexpr uint8_t TITLE_CHANGED_FLAG         = 0b100000;
-constexpr uint8_t CALLBACK_FLAG              = 0b1000000;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height); // update glad
