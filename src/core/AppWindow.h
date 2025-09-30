@@ -10,6 +10,7 @@
 #include <glfw/glfw3.h>
 #include "util/Colors.h"
 #include "util/Vectors.h"
+#include "util/TimeUtil.h"
 #include "util/math/Rect2d.h"
 
 static constexpr Rect2d defaultAppWindowDimensions( 0, 0, 854, 480 );

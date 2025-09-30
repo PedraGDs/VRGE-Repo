@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include "input/InputHandler.h"
 #include "MainThreadRunner.h"
+#include "util/TimeUtil.h"
 #include "AppWindow.h"
 
 using highResClock = std::chrono::high_resolution_clock;
@@ -35,16 +36,6 @@ void window_size_callback(GLFWwindow* window, int width, int height) {
 
 void window_pos_callback(GLFWwindow* window, int xPos, int yPos) {
     windowMap[window]->setPos(xPos, yPos, true);
-}
-
-inline void sleepUntil ( highResClock::time_point target ) {
-
-    while ( highResClock::now() + std::chrono::microseconds(500) < target ) {
-        std::this_thread::sleep_for ( std::chrono::microseconds(500) );
-    }   
-
-    while ( highResClock::now() < target ) { }
-
 }
 
 // Must only be called from the main thread.
@@ -320,7 +311,7 @@ void AppWindow::render ( float deltaTime ) {
     // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
     // glClear(GL_COLOR_BUFFER_BIT);
 
-    // std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
+    std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
 }
 
 void AppWindow::run ( ) {
