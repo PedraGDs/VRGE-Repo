@@ -16,23 +16,23 @@
 
 #ifdef sun
     #define OPERATING_SYSTEM OS_SOLARIS
-#endif // sun
+#endif
 
 #ifdef sgi
     #define OPERATING_SYSTEM OS_IRIX
-#endif // sgi
+#endif 
 
 #ifdef __CYGWIN__
     #define OPERATING_SYSTEM OS_CYGWIN
-#endif // __CYGWIN__
+#endif 
 
 #ifdef __APPLE__
     #define OPERATING_SYSTEM OS_DARWIN
-#endif // __APPLE__
+#endif
 
 #ifdef __QNX__
     #define OPERATING_SYSTEM OS_QNX
-#endif // __QNX__
+#endif 
 
 #ifdef _WIN32 
     #ifndef _WIN32_WINNT
@@ -40,7 +40,7 @@
     #endif
     
     #define OPERATING_SYSTEM OS_WINDOWS
-#endif // _WIN32
+#endif
 
 #ifdef __INTEL_COMPILER
     #define OPERATING_SYSTEM OS_WINDOWS
