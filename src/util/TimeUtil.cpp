@@ -1,4 +1,6 @@
 
+// OSA SLEEP
+
 #include "TimeUtil.h"
 #include "util/detect.h"
 
@@ -13,7 +15,7 @@
     #include <time.h>
 #endif
 
-void sleep ( double seconds ) {
+void oSleep ( double seconds ) {
 #if (OPERATING_SYSTEM == OS_LINUX) || (OPERATING_SYSTEM == OS_DARWIN) || (OPERATING_SYSTEM == OS_SOLARIS)
 
     struct timespec ts;
@@ -23,17 +25,20 @@ void sleep ( double seconds ) {
 
 #elif (OPERATING_SYSTEM == OS_WINDOWS)
     // A waitable timer seems to be better than the Windows Sleep().
+
+    timeBeginPeriod ( 1 );
+
     HANDLE WaitTimer;
     LARGE_INTEGER dueTime;
 
-    seconds *= -10000000.0;
-
-    dueTime.QuadPart = static_cast<LONGLONG>(seconds); //dueTime is in 100ns
+    dueTime.QuadPart = static_cast<LONGLONG>(seconds * -10000000.0); //dueTime is in 100ns
 
     WaitTimer = CreateWaitableTimer(NULL, true, NULL);
     SetWaitableTimer(WaitTimer, &dueTime, 0, NULL, NULL, 0);
     WaitForSingleObject(WaitTimer, INFINITE);
     CloseHandle(WaitTimer);
+
+    timeEndPeriod ( 1 );
 
 #elif (OPERATING_SYSTEM == OS_QNX)
     struct timespec ts;
@@ -44,13 +49,13 @@ void sleep ( double seconds ) {
 }
 
 void sleepInSecs ( uint32_t secs ) {
-    sleep ( secs );
+    oSleep ( secs );
 }
 
 void sleepInMs ( uint32_t ms ) {
-    sleep ( ms / 1000.0 );
+    oSleep ( ms / 1000.0 );
 }
 
 void sleepInUs ( uint32_t us ) {
-    sleep ( us / 1000000.0 );
+    oSleep ( us / 1000000.0 );
 }

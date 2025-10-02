@@ -14,6 +14,26 @@ typedef struct Rect2d {
     constexpr inline Rect2d() noexcept: xPos(0), yPos(0), width(0), height(0) { }
     constexpr inline Rect2d ( int x, int y, int w, int h) noexcept: xPos(x), yPos(y), width(w), height(h){}
     
+    constexpr inline void setPos ( const Vector2i& pos ) noexcept {
+        this->xPos = pos.X;
+        this->yPos = pos.Y;
+    }
+
+    constexpr inline void setPos ( const int xPos, const int yPos ) noexcept {
+        this->xPos = xPos;
+        this->yPos = yPos;
+    }
+
+    constexpr inline void setSize ( const Vector2i& size ) noexcept {
+        this->width = size.X;
+        this->height = size.Y;
+    }
+
+    constexpr inline void setSize ( const int width, const int height ) noexcept {
+        this->height = height;
+        this->width = width;
+    }
+
     constexpr inline Vector2i getPos () const noexcept {
         return Vector2i(this->xPos, this->yPos);
     }
@@ -31,7 +51,7 @@ typedef struct Rect2d {
         int xStart = std::max(this->xPos, other.xPos);
         int yStart = std::max(this->yPos, other.yPos);
 
-        int xEnd = std::min(this->xPos + this->width, other.yPos + other.width);
+        int xEnd = std::min(this->xPos + this->width, other.xPos + other.width);
         int yEnd = std::min(this->yPos + this->height, other.yPos + other.height);
 
         if ( xStart < xEnd && yStart < yEnd ) {

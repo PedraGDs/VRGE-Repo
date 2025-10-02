@@ -24,6 +24,25 @@ void stopGlfw ();
 class AppWindow; // foward
 AppWindow* getAppWindow ( GLFWwindow* window );
 
+struct MonitorData {
+    int xPos;
+    int yPos;
+    int width;
+    int height;
+
+    int redBits;
+    int blueBits;
+    int greenBits;
+
+    int refreshRate;
+
+    GLFWmonitor* handle;
+
+    inline Rect2d getDimensions ( ) {
+        return Rect2d ( xPos, yPos, width, height );
+    }
+};
+
 class AppWindow {
     
     private:
@@ -34,6 +53,7 @@ class AppWindow {
         Vector2i bufferSize{};
 
         std::chrono::high_resolution_clock::duration frameTime{};
+        Rect2d oldDimensions = defaultAppWindowDimensions; // pre full-screen size
         Rect2d dimensions = defaultAppWindowDimensions;
         float maxFrameRate = INFINITY;
         bool fullscreenEnabled = false;
@@ -50,10 +70,11 @@ class AppWindow {
 
         void iSetFullScreen ( );
 
+        void flipFlag ( uint8_t flag );
         void setFlag ( uint8_t flag, bool enabled );
         bool isFlagEnabled ( uint8_t flag );
         void applyChanges ( );
-
+        bool initWindow ( );
 
     public:
         bool initializeCentered = true;
@@ -61,13 +82,15 @@ class AppWindow {
         inline AppWindow ( const char* title, Rect2d dims ) noexcept: dimensions(dims), winTitle(title) { }
         inline AppWindow ( const char* title ) noexcept: winTitle(title) { }
 
-        ~AppWindow ();
+        inline ~AppWindow () { this->destroy(); };
 
         bool init ( );
-        void destroy ();
+        void destroy ( bool force );
+        inline void destroy ( ) { this->destroy(false); };
 
         std::thread* getThread ();
         GLFWmonitor* getMonitor ();
+        MonitorData* getMonitorData ();
 
         void setDimensions ( Rect2d dimensions );
         Rect2d getDimensions ();
