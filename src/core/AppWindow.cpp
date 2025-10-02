@@ -243,11 +243,10 @@ bool AppWindow::initWindow ( ) {
     if ( this->initializeCentered && (monitor = this->getMonitor()) ) { 
         Rect2d monitorRect = getMonitorWorkRect(monitor);
 
-        Vector2i newPos = monitorRect.getPos();
-        newPos += ((monitorRect.getSize() - this->oldDimensions.getSize()) / 2); // size offset
+        Vector2i newPos = monitorRect.getPos(); // use oldDimensions due to fullscreen
+        newPos += ((monitorRect.getSize() - this->oldDimensions.getSize()) / 2); 
     
         if ( fullscreenEnabled ) {
-            std::cout << newPos << std::endl;
             this->oldDimensions.setPos(newPos);
         } else {
             this->dimensions.setPos(newPos);
