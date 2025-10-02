@@ -244,9 +244,10 @@ bool AppWindow::initWindow ( ) {
         Rect2d monitorRect = getMonitorWorkRect(monitor);
 
         Vector2i newPos = monitorRect.getPos();
-        newPos += ((monitorRect.getSize() - this->dimensions.getSize()) / 2); // size offset
+        newPos += ((monitorRect.getSize() - this->oldDimensions.getSize()) / 2); // size offset
     
         if ( fullscreenEnabled ) {
+            std::cout << newPos << std::endl;
             this->oldDimensions.setPos(newPos);
         } else {
             this->dimensions.setPos(newPos);
@@ -370,7 +371,7 @@ void AppWindow::destroy ( bool force ) {
 
 }
 
-// Only call this well this->fullscreenEnabled has changed.
+// Only call this when this->fullscreenEnabled has changed.
 void AppWindow::iSetFullScreen ( ) {
 
     mainThreadRunner->scheduleAndWait<void>([this]() -> void {
@@ -483,7 +484,7 @@ void AppWindow::render ( float deltaTime ) {
     // glClearColor(wBgColor.red, wBgColor.green, wBgColor.blue, wBgColor.alpha);
     // glClear(GL_COLOR_BUFFER_BIT);
 
-    // std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
+    std::cout << ( 1 / deltaTime ) << " FPS" << std::endl;
 }
 
 void AppWindow::run ( ) {

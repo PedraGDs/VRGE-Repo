@@ -16,7 +16,7 @@ int main(int argc, char** args)
     mainThreadRunner->addRepeating ([]() -> void { glfwPollEvents(); });
 
     AppWindow window("Test Window");
-    window.setMaxFrameRate(30);
+    window.setFullScreen(true);
 
     if ( !window.init () ) {
         std::cout << "Failed to initialize window." << std::endl;
